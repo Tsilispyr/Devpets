@@ -4,7 +4,7 @@
   gather_facts: no
   become: no
   vars:
-    project_root: "{{ playbook_dir | realpath }}"
+    project_root: "{{ playbook_dir | dirname | realpath }}"
     k8s_path: "{{ project_root }}/k8s"
     cluster_name: "devops-pets"
     namespace: "devops-pets"
@@ -16,19 +16,25 @@
           DEVOPS PETS INFRASTRUCTURE DEPLOYMENT
           =====================================
           Following exact order with wait till ready:
-          1. Harsh cleanup (preserve jenkins_home, PVCs and tools)
+          1. Harsh cleanup (preserve jenkins_home, docker tools, PVs)
           2. Create Kind cluster
-          3. Create namespace
-          4. Deploy PostgreSQL (with wait)
-          5. Deploy MailHog (with wait)
-          6. Build and deploy Jenkins (with wait)
+          3. Create namespace with Jenkins home directory and PV/PVC templates
+          4. Build and load custom images (Jenkins, PostgreSQL, MailHog)
+          5. Apply manifests
+          6. Wait till ready for each service (using kubectl wait)
           7. Port forward only at the end
+          
+          All services (Jenkins, PostgreSQL, MailHog) run in same namespace
+          Jenkins will have cluster access for future frontend/backend management
+          
+          Cleanup preserves: jenkins_home, docker tools, PVs, other images/containers
+          Cleanup removes: devops-pets images only
 
-    # STEP 1: HARSH CLEANUP (preserve jenkins_home, PVCs and tools)
-    - name: Harsh cleanup - preserve jenkins_home, PVCs and tools
+    # STEP 1: HARSH CLEANUP (preserve jenkins_home, docker tools, PVs)
+    - name: Harsh cleanup - preserve jenkins_home, docker tools, PVs
       shell: |
         echo "=== STEP 1: HARSH CLEANUP ==="
-        echo "PRESERVING: jenkins_home, PVCs and system tools"
+        echo "PRESERVING: jenkins_home, docker tools, PVs and system tools"
         
         # Show current state
         echo "Current clusters:"
@@ -40,16 +46,11 @@
         echo "Killing kubectl port-forward processes..."
         pkill -f "kubectl port-forward" 2>/dev/null || true
         
-        # Stop and remove devops-pets containers
-        echo "Stopping and removing devops-pets containers..."
-        docker ps -a | grep devops-pets | awk '{print $1}' | xargs -r docker stop 2>/dev/null || true
-        docker ps -a | grep devops-pets | awk '{print $1}' | xargs -r docker rm 2>/dev/null || true
-        
-        # Remove devops-pets images
-        echo "Removing devops-pets images..."
+        # Remove ONLY devops-pets images (preserve all other images and containers)
+        echo "Removing devops-pets images only..."
         docker images | grep devops-pets | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
         
-        # Delete devops-pets namespace only (PVCs will be preserved)
+        # Delete devops-pets namespace only (PVs will be preserved)
         echo "Deleting devops-pets namespace..."
         if command -v kubectl >/dev/null 2>&1; then
           kubectl delete namespace {{ namespace }} --force --grace-period=0 --timeout=10s 2>/dev/null || true
@@ -61,11 +62,6 @@
           kind delete cluster --name {{ cluster_name }} 2>/dev/null || true
         fi
         
-        # Clean up any remaining containers
-        echo "Cleaning up any remaining containers..."
-        docker ps -a | grep -E "(jenkins|postgres|mailhog)" | awk '{print $1}' | xargs -r docker stop 2>/dev/null || true
-        docker ps -a | grep -E "(jenkins|postgres|mailhog)" | awk '{print $1}' | xargs -r docker rm 2>/dev/null || true
-        
         # Wait for everything to settle
         sleep 3
         
@@ -75,31 +71,28 @@
         echo "Final namespaces:"
         kubectl get namespaces 2>/dev/null || echo "kubectl not available"
         
-        echo "OK! HARSH CLEANUP completed (jenkins_home, PVCs and tools preserved)"
-      args:
-        chdir: "{{ project_root }}"
+        echo "OK! HARSH CLEANUP completed (jenkins_home, docker tools, PVs preserved)"
       register: cleanup_result
       failed_when: false
 
     # STEP 2: CREATE KIND CLUSTER
+    - name: Create jenkins_home directory
+      file:
+        path: "{{ project_root }}/jenkins_home"
+        state: directory
+        mode: '0755'
+
     - name: Create Kind cluster
       shell: |
         echo "=== STEP 2: CREATING KIND CLUSTER ==="
+        cd {{ project_root }}
         kind create cluster --name {{ cluster_name }} --config kind-config.yaml
         echo "OK! Kind cluster created"
         
         echo "Verifying cluster..."
         kind get clusters
         kubectl cluster-info
-      args:
-        chdir: "{{ project_root }}"
       register: cluster_create
-
-    - name: Create jenkins_home directory
-      file:
-        path: "{{ project_root }}/jenkins_home"
-        state: directory
-        mode: '0755'
 
     # STEP 3: CREATE NAMESPACE
     - name: Create namespace
@@ -110,43 +103,139 @@
         
         echo "Verifying namespace..."
         kubectl get namespaces | grep {{ namespace }}
-      args:
-        chdir: "{{ project_root }}"
       register: namespace_create
 
-    # STEP 4: DEPLOY POSTGRESQL
+    - name: Setup Jenkins home directory in namespace
+      file:
+        path: "{{ project_root }}/jenkins_home"
+        state: directory
+        mode: '0755'
+      register: jenkins_home_setup
+
+    - name: Create Jenkins home PersistentVolume
+      template:
+        src: jenkins-home-pv.yaml.j2
+        dest: "{{ project_root }}/jenkins_home_pv.yaml"
+      register: jenkins_pv_template
+
+    - name: Create Jenkins home PersistentVolumeClaim
+      template:
+        src: jenkins-home-pvc.yaml.j2
+        dest: "{{ project_root }}/jenkins_home_pvc.yaml"
+      register: jenkins_pvc_template
+
+    - name: Apply Jenkins home PV and PVC
+      shell: |
+        echo "=== STEP 3.2: APPLYING JENKINS HOME PV/PVC ==="
+        cd {{ project_root }}
+        
+        # Apply the PV and PVC
+        kubectl apply -f jenkins_home_pv.yaml
+        kubectl apply -f jenkins_home_pvc.yaml
+        
+        echo "OK! Jenkins home PV/PVC applied"
+      register: jenkins_pv_apply
+
+    # STEP 4: BUILD AND LOAD IMAGES
+    - name: Build Jenkins image
+      shell: |
+        echo "=== STEP 4: BUILDING JENKINS IMAGE ==="
+        cd {{ project_root }}
+        docker build -t devops-pets-jenkins:latest {{ k8s_path }}/jenkins/
+        echo "OK! Jenkins image built"
+        
+        echo "Verifying Jenkins image..."
+        docker images | grep devops-pets-jenkins
+      register: jenkins_build
+
+    - name: Load Jenkins image to Kind cluster
+      shell: |
+        echo "=== STEP 4.1: LOADING JENKINS IMAGE TO KIND CLUSTER ==="
+        cd {{ project_root }}
+        kind load docker-image devops-pets-jenkins:latest --name {{ cluster_name }}
+        echo "OK! Jenkins image loaded"
+        
+        echo "Verifying loaded images..."
+        docker exec {{ cluster_name }}-control-plane crictl images | grep devops-pets-jenkins
+      register: jenkins_load
+
+    - name: Build PostgreSQL image
+      shell: |
+        echo "=== STEP 4.2: BUILDING POSTGRESQL IMAGE ==="
+        cd {{ project_root }}
+        docker build -t devops-pets-postgres:latest {{ k8s_path }}/postgres/
+        echo "OK! PostgreSQL image built"
+        
+        echo "Verifying PostgreSQL image..."
+        docker images | grep devops-pets-postgres
+      register: postgres_build
+
+    - name: Load PostgreSQL image to Kind cluster
+      shell: |
+        echo "=== STEP 4.3: LOADING POSTGRESQL IMAGE TO KIND CLUSTER ==="
+        cd {{ project_root }}
+        kind load docker-image devops-pets-postgres:latest --name {{ cluster_name }}
+        echo "OK! PostgreSQL image loaded"
+        
+        echo "Verifying loaded images..."
+        docker exec {{ cluster_name }}-control-plane crictl images | grep devops-pets-postgres
+      register: postgres_load
+
+    - name: Build MailHog image
+      shell: |
+        echo "=== STEP 4.4: BUILDING MAILHOG IMAGE ==="
+        cd {{ project_root }}
+        docker build -t devops-pets-mailhog:latest {{ k8s_path }}/mailhog/
+        echo "OK! MailHog image built"
+        
+        echo "Verifying MailHog image..."
+        docker images | grep devops-pets-mailhog
+      register: mailhog_build
+
+    - name: Load MailHog image to Kind cluster
+      shell: |
+        echo "=== STEP 4.5: LOADING MAILHOG IMAGE TO KIND CLUSTER ==="
+        cd {{ project_root }}
+        kind load docker-image devops-pets-mailhog:latest --name {{ cluster_name }}
+        echo "OK! MailHog image loaded"
+        
+        echo "Verifying loaded images..."
+        docker exec {{ cluster_name }}-control-plane crictl images | grep devops-pets-mailhog
+      register: mailhog_load
+
+    # STEP 5: APPLY MANIFESTS
     - name: Apply PostgreSQL manifests
       shell: |
-        echo "=== STEP 4: DEPLOYING POSTGRESQL ==="
+        echo "=== STEP 5: APPLYING POSTGRESQL MANIFESTS ==="
+        cd {{ project_root }}
         kubectl apply -f {{ k8s_path }}/postgres/ -n {{ namespace }}
         echo "OK! PostgreSQL manifests applied"
-      args:
-        chdir: "{{ project_root }}"
       register: postgres_apply
 
+    - name: Apply MailHog manifests
+      shell: |
+        echo "=== STEP 5.1: APPLYING MAILHOG MANIFESTS ==="
+        cd {{ project_root }}
+        kubectl apply -f {{ k8s_path }}/mailhog/ -n {{ namespace }}
+        echo "OK! MailHog manifests applied"
+      register: mailhog_apply
+
+    - name: Apply Jenkins manifests
+      shell: |
+        echo "=== STEP 5.2: APPLYING JENKINS MANIFESTS ==="
+        cd {{ project_root }}
+        kubectl apply -f {{ k8s_path }}/jenkins/ -n {{ namespace }}
+        echo "OK! Jenkins manifests applied"
+      register: jenkins_apply
+
+    # STEP 6: WAIT FOR SERVICES TO BE READY (using kubectl wait like old script)
     - name: Wait for PostgreSQL to be ready
       shell: |
-        echo "=== STEP 4.1: WAITING FOR POSTGRESQL TO BE READY ==="
+        echo "=== STEP 6: WAITING FOR POSTGRESQL TO BE READY ==="
         echo "Waiting for PostgreSQL deployment to be ready..."
         
-        max_attempts=30
-        attempt=1
-        
-        while [ $attempt -le $max_attempts ]; do
-          if kubectl get deployment postgres -n {{ namespace }} --no-headers 2>/dev/null | grep -q "1/1"; then
-            echo "OK! PostgreSQL deployment is ready!"
-            break
-          fi
-          
-          echo "Attempt $attempt/$max_attempts - waiting 10 seconds..."
-          sleep 10
-          attempt=$((attempt + 1))
-        done
-        
-        if [ $attempt -gt $max_attempts ]; then
-          echo "ERR! PostgreSQL deployment failed to become ready after $max_attempts attempts"
-          exit 1
-        fi
+        kubectl wait --for=condition=available --timeout=300s deployment/postgres -n {{ namespace }}
+        echo "OK! PostgreSQL deployment is ready!"
         
         echo "Verifying PostgreSQL pod..."
         kubectl get pods -n {{ namespace }} | grep postgres
@@ -154,39 +243,13 @@
         chdir: "{{ project_root }}"
       register: postgres_ready
 
-    # STEP 5: DEPLOY MAILHOG
-    - name: Apply MailHog manifests
-      shell: |
-        echo "=== STEP 5: DEPLOYING MAILHOG ==="
-        kubectl apply -f {{ k8s_path }}/mailhog/ -n {{ namespace }}
-        echo "OK! MailHog manifests applied"
-      args:
-        chdir: "{{ project_root }}"
-      register: mailhog_apply
-
     - name: Wait for MailHog to be ready
       shell: |
-        echo "=== STEP 5.1: WAITING FOR MAILHOG TO BE READY ==="
+        echo "=== STEP 6.1: WAITING FOR MAILHOG TO BE READY ==="
         echo "Waiting for MailHog deployment to be ready..."
         
-        max_attempts=30
-        attempt=1
-        
-        while [ $attempt -le $max_attempts ]; do
-          if kubectl get deployment mailhog -n {{ namespace }} --no-headers 2>/dev/null | grep -q "1/1"; then
-            echo "OK! MailHog deployment is ready!"
-            break
-          fi
-          
-          echo "Attempt $attempt/$max_attempts - waiting 10 seconds..."
-          sleep 10
-          attempt=$((attempt + 1))
-        done
-        
-        if [ $attempt -gt $max_attempts ]; then
-          echo "ERR! MailHog deployment failed to become ready after $max_attempts attempts"
-          exit 1
-        fi
+        kubectl wait --for=condition=available --timeout=300s deployment/mailhog -n {{ namespace }}
+        echo "OK! MailHog deployment is ready!"
         
         echo "Verifying MailHog pod..."
         kubectl get pods -n {{ namespace }} | grep mailhog
@@ -194,63 +257,13 @@
         chdir: "{{ project_root }}"
       register: mailhog_ready
 
-    # STEP 6: BUILD AND DEPLOY JENKINS
-    - name: Build Jenkins image
-      shell: |
-        echo "=== STEP 6: BUILDING JENKINS IMAGE ==="
-        docker build -t devops-pets-jenkins:latest {{ k8s_path }}/jenkins/
-        echo "OK! Jenkins image built"
-        
-        echo "Verifying Jenkins image..."
-        docker images | grep devops-pets-jenkins
-      args:
-        chdir: "{{ project_root }}"
-      register: jenkins_build
-
-    - name: Load Jenkins image to Kind cluster
-      shell: |
-        echo "=== STEP 6.1: LOADING JENKINS IMAGE TO KIND CLUSTER ==="
-        kind load docker-image devops-pets-jenkins:latest --name {{ cluster_name }}
-        echo "OK! Jenkins image loaded"
-        
-        echo "Verifying loaded images..."
-        docker exec {{ cluster_name }}-control-plane crictl images | grep devops-pets-jenkins
-      args:
-        chdir: "{{ project_root }}"
-      register: jenkins_load
-
-    - name: Apply Jenkins manifests
-      shell: |
-        echo "=== STEP 6.2: DEPLOYING JENKINS ==="
-        kubectl apply -f {{ k8s_path }}/jenkins/ -n {{ namespace }}
-        echo "OK! Jenkins manifests applied"
-      args:
-        chdir: "{{ project_root }}"
-      register: jenkins_apply
-
     - name: Wait for Jenkins to be ready
       shell: |
-        echo "=== STEP 6.3: WAITING FOR JENKINS TO BE READY ==="
+        echo "=== STEP 6.2: WAITING FOR JENKINS TO BE READY ==="
         echo "Waiting for Jenkins deployment to be ready..."
         
-        max_attempts=30
-        attempt=1
-        
-        while [ $attempt -le $max_attempts ]; do
-          if kubectl get deployment jenkins -n {{ namespace }} --no-headers 2>/dev/null | grep -q "1/1"; then
-            echo "OK! Jenkins deployment is ready!"
-            break
-          fi
-          
-          echo "Attempt $attempt/$max_attempts - waiting 10 seconds..."
-          sleep 10
-          attempt=$((attempt + 1))
-        done
-        
-        if [ $attempt -gt $max_attempts ]; then
-          echo "ERR! Jenkins deployment failed to become ready after $max_attempts attempts"
-          exit 1
-        fi
+        kubectl wait --for=condition=available --timeout=300s deployment/jenkins -n {{ namespace }}
+        echo "OK! Jenkins deployment is ready!"
         
         echo "Verifying Jenkins pod..."
         kubectl get pods -n {{ namespace }} | grep jenkins

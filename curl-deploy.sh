@@ -1,198 +1,192 @@
 #!/bin/bash
 
-# DevOps Pets - One-Line Infrastructure Deployment Script
-# This script can be run from anywhere to deploy the infrastructure
-# Usage: curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
+# DevOps Pets Infrastructure Deployment via curl
+# This script can be run directly from curl and deploys infrastructure only
+# Usage: curl -sSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
 
-set -e
-
-echo "DevOps Pets - One-Line Infrastructure Deployment"
-echo "================================================"
+set -e  # Stop on any error
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-BOLD_GREEN='\033[1;32m'
-BOLD_RED='\033[1;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO_URL="https://github.com/Tsilispyr/Devpets.git"
-REPO_DIR="Devpets"
-CURRENT_DIR="$(pwd)"
+CLUSTER_NAME="devops-pets"
+NAMESPACE="devops-pets"
 
-# Function to detect OS and install prerequisites
-install_prerequisites() {
-    echo -e "${YELLOW}Installing prerequisites...${NC}"
-    
-    # Detect OS
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Ubuntu/Debian
-        sudo apt update
-        sudo apt install -y git curl wget unzip software-properties-common
-        
-        # Install Ansible
-        if ! command -v ansible &> /dev/null; then
-            echo -e "${YELLOW}Installing Ansible...${NC}"
-            sudo apt-add-repository --yes --update ppa:ansible/ansible
-            sudo apt install -y ansible
-        fi
-        
-        # Install Docker
-        if ! command -v docker &> /dev/null; then
-            echo -e "${YELLOW}Installing Docker...${NC}"
-            curl -fsSL https://get.docker.com -o get-docker.sh
-            sudo sh get-docker.sh
-            sudo usermod -aG docker $USER
-            rm get-docker.sh
-        fi
-        
-        # Install Kind
-        if ! command -v kind &> /dev/null; then
-            echo -e "${YELLOW}Installing Kind...${NC}"
-            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
-            chmod +x ./kind
-            sudo mv ./kind /usr/local/bin/kind
-            sudo chown root:root /usr/local/bin/kind
-            sudo chmod 755 /usr/local/bin/kind
-        fi
-        
-        # Install kubectl
-        if ! command -v kubectl &> /dev/null; then
-            echo -e "${YELLOW}Installing kubectl...${NC}"
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
-            sudo chown root:root /usr/local/bin/kubectl
-            sudo chmod 755 /usr/local/bin/kubectl
-        fi
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        if ! command -v brew &> /dev/null; then
-            echo -e "${YELLOW}Installing Homebrew...${NC}"
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        fi
-        brew install git curl wget ansible docker kind kubectl
-    else
-        echo -e "${BOLD_RED}ERR! Unsupported OS: $OSTYPE${NC}"
-        echo -e "${YELLOW}Please install the following manually:${NC}"
-        echo "- Git, Ansible, Docker, Kind, kubectl"
-        exit 1
-    fi
-    
-    echo -e "${BOLD_GREEN}OK! Prerequisites installed${NC}"
+# Helper functions
+print_color() {
+    local color=$1
+    local message=$2
+    echo -e "${color}${message}${NC}"
 }
 
-# Function to setup repository
-setup_repository() {
-    echo -e "${YELLOW}Setting up repository...${NC}"
-    
-    # Remove existing directory if it exists
-    if [ -d "$REPO_DIR" ]; then
-        echo -e "${YELLOW}Repository exists, updating...${NC}"
-        cd "$REPO_DIR"
-        git fetch origin
-        git reset --hard origin/main
-        cd "$CURRENT_DIR"
-    else
-        echo -e "${YELLOW}Cloning repository...${NC}"
-        git clone "$REPO_URL" "$REPO_DIR"
-    fi
-    
-    echo -e "${BOLD_GREEN}OK! Repository ready at $CURRENT_DIR/$REPO_DIR${NC}"
+print_header() {
+    print_color $BLUE "=========================================="
+    print_color $BLUE "$1"
+    print_color $BLUE "=========================================="
 }
 
-# Function to run deployment
-run_deployment() {
-    echo -e "${YELLOW}Running infrastructure deployment...${NC}"
+print_success() {
+    print_color $GREEN "✅ $1"
+}
+
+print_error() {
+    print_color $RED "❌ $1"
+}
+
+print_warning() {
+    print_color $YELLOW "⚠️  $1"
+}
+
+# Check if required tools are available
+check_tools() {
+    print_header "Checking Required Tools"
     
-    cd "$REPO_DIR"
+    local tools=("docker" "kubectl" "kind" "ansible-playbook")
+    local missing_tools=()
     
-    # Check if deploy-all.yml exists
-    if [ ! -f "ansible/deploy-all.yml" ]; then
-        echo -e "${BOLD_RED}ERR! deploy-all.yml not found in $REPO_DIR/ansible${NC}"
-        exit 1
-    fi
-    
-    # Make deploy-all.yml executable
-    chmod +x ansible/deploy-all.yml
-    
-    # Run the infrastructure deployment
-    echo -e "${BLUE}Starting infrastructure deployment from $REPO_DIR...${NC}"
-    ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${BOLD_GREEN}OK! Infrastructure deployment completed!${NC}"
-    else
-        echo -e "${BOLD_RED}ERR! Infrastructure deployment failed!${NC}"
-        exit 1
-    fi
-    
-    # Deploy applications if deploy-applications.yml exists
-    if [ -f "ansible/deploy-applications.yml" ]; then
-        echo -e "${YELLOW}Deploying applications...${NC}"
-        ansible-playbook -i ansible/inventory.ini ansible/deploy-applications.yml
-        
-        if [ $? -eq 0 ]; then
-            echo -e "${BOLD_GREEN}OK! Applications deployment completed!${NC}"
+    for tool in "${tools[@]}"; do
+        if ! command -v "$tool" &> /dev/null; then
+            missing_tools+=("$tool")
         else
-            echo -e "${BOLD_RED}ERR! Applications deployment failed!${NC}"
-            exit 1
+            print_success "$tool is available"
         fi
+    done
+    
+    if [ ${#missing_tools[@]} -ne 0 ]; then
+        print_error "Missing required tools: ${missing_tools[*]}"
+        print_warning "Please install the missing tools and try again"
+        exit 1
+    fi
+    
+    print_success "All required tools are available"
+}
+
+# Setup project directory
+setup_project() {
+    print_header "Setting up Project Directory"
+    
+    # Get the directory where this script is located
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$SCRIPT_DIR"
+    
+    print_success "Project root: $PROJECT_ROOT"
+    
+    # Check if we're in the right directory
+    if [ ! -f "$PROJECT_ROOT/ansible/deploy-all.yml" ]; then
+        print_error "deploy-all.yml not found in $PROJECT_ROOT/ansible/"
+        print_error "Please run this script from the project root directory"
+        exit 1
+    fi
+    
+    print_success "Project structure verified"
+}
+
+# Clean up existing deployment
+cleanup_existing() {
+    print_header "Cleaning up Existing Deployment"
+    
+    print_color $BLUE "Stopping any existing port forwarding..."
+    pkill -f "kubectl port-forward" 2>/dev/null || true
+    
+    print_color $BLUE "Removing devops-pets images only..."
+    docker images | grep devops-pets | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+    
+    print_color $BLUE "Deleting existing namespace (PVs will be preserved)..."
+    kubectl delete namespace "$NAMESPACE" --force --grace-period=0 --timeout=10s 2>/dev/null || true
+    
+    print_color $BLUE "Deleting existing cluster..."
+    kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
+    
+    print_success "Cleanup completed (jenkins_home, docker tools, PVs preserved)"
+}
+
+# Deploy infrastructure
+deploy_infrastructure() {
+    print_header "Deploying Infrastructure"
+    
+    print_color $BLUE "This will deploy:"
+    print_color $BLUE "- PostgreSQL database"
+    print_color $BLUE "- Jenkins CI/CD server"
+    print_color $BLUE "- MailHog email testing"
+    print_color $BLUE ""
+    print_color $BLUE "Frontend and Backend will be deployed separately later"
+    
+    # Change to project root
+    cd "$PROJECT_ROOT"
+    
+    # Run Ansible deployment
+    print_header "Running Ansible Infrastructure Deployment"
+    
+    if ansible-playbook -i localhost, --connection=local "ansible/deploy-all.yml"; then
+        print_success "Infrastructure deployment completed successfully!"
     else
-        echo -e "${YELLOW}Applications deployment skipped (deploy-applications.yml not found)${NC}"
+        print_error "Infrastructure deployment failed!"
+        print_warning "Check the logs above for details"
+        exit 1
     fi
-    
-    echo -e "${BOLD_GREEN}OK! Complete deployment finished!${NC}"
 }
 
-# Function to display final status
-display_status() {
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${BOLD_GREEN}OK! DevOps Pets deployment completed!${NC}"
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${YELLOW}Infrastructure Services Deployed:${NC}"
-    echo -e "Jenkins: ${GREEN}http://localhost:8082${NC}"
-    echo -e "MailHog: ${GREEN}http://localhost:8025${NC}"
-    echo -e "PostgreSQL: ${GREEN}Running in cluster${NC}"
+# Display final status
+show_status() {
+    print_header "Deployment Status"
     
-    # Check if applications were deployed
-    if [ -f "ansible/deploy-applications.yml" ]; then
-        echo -e "${YELLOW}Application Services Deployed:${NC}"
-        echo -e "Frontend: ${GREEN}http://localhost:8081${NC}"
-        echo -e "Backend: ${GREEN}http://localhost:8080${NC}"
+    print_color $BLUE "Checking cluster status..."
+    
+    if kubectl get namespace "$NAMESPACE" &>/dev/null; then
+        print_success "Namespace '$NAMESPACE' exists"
+        
+        print_color $BLUE "Pods in namespace:"
+        kubectl get pods -n "$NAMESPACE" || print_warning "No pods found"
+        
+        print_color $BLUE "Services in namespace:"
+        kubectl get services -n "$NAMESPACE" || print_warning "No services found"
+        
+        print_color $BLUE "Deployments in namespace:"
+        kubectl get deployments -n "$NAMESPACE" || print_warning "No deployments found"
+        
+    else
+        print_error "Namespace '$NAMESPACE' not found"
     fi
     
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${YELLOW}Project location:${NC}"
-    echo -e "${GREEN}$CURRENT_DIR/$REPO_DIR${NC}"
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${YELLOW}Useful commands:${NC}"
-    echo -e "1. Check services: ${GREEN}cd $REPO_DIR && ./check-services.sh${NC}"
-    echo -e "2. View logs: ${GREEN}kubectl logs -n devops-pets${NC}"
-    echo -e "3. Stop port forwarding: ${GREEN}pkill -f 'kubectl port-forward'${NC}"
-    echo -e "${BLUE}================================${NC}"
+    print_header "Access URLs"
+    print_color $GREEN "Jenkins: http://localhost:8082"
+    print_color $GREEN "MailHog: http://localhost:8025"
+    print_color $BLUE "PostgreSQL: Running in cluster (no external access)"
+    
+    print_header "Useful Commands"
+    print_color $BLUE "Check all resources: kubectl get all -n $NAMESPACE"
+    print_color $BLUE "View logs: kubectl logs -n $NAMESPACE <pod-name>"
+    print_color $BLUE "Stop port forwarding: pkill -f 'kubectl port-forward'"
+    print_color $BLUE "Delete everything: kubectl delete namespace $NAMESPACE --force"
 }
 
-# Main execution
+# Main script execution
 main() {
-    echo -e "${BLUE}DevOps Pets - One-Line Infrastructure Auto Deployment${NC}"
-    echo -e "${BLUE}====================================================${NC}"
-    echo -e "${YELLOW}Current directory: $CURRENT_DIR${NC}"
+    print_header "DevOps Pets Infrastructure Deployment via curl"
     
-    # Install prerequisites
-    install_prerequisites
+    # Check tools
+    check_tools
     
-    # Setup repository
-    setup_repository
+    # Setup project
+    setup_project
     
-    # Run deployment
-    run_deployment
+    # Cleanup existing deployment
+    cleanup_existing
     
-    # Display final status
-    display_status
+    # Deploy infrastructure
+    deploy_infrastructure
+    
+    # Show final status
+    show_status
+    
+    print_header "Deployment Complete!"
+    print_success "Infrastructure is ready for use"
+    print_color $BLUE "Next step: Deploy frontend and backend applications"
 }
 
 # Run main function

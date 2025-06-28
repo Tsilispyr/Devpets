@@ -34,7 +34,5 @@ spec:
               mountPath: /var/jenkins_home
       volumes:
         - name: jenkins-home
-          hostPath:
-            # Mount the jenkins_home directory from the kind node
-            path: /jenkins_home
-            type: DirectoryOrCreate
+          persistentVolumeClaim:
+            claimName: jenkins-home-pvc
