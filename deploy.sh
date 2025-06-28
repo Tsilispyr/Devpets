@@ -18,7 +18,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ANSIBLE_DIR="$PROJECT_ROOT/ansible"
 CLUSTER_NAME="devops-pets"
 NAMESPACE="devops-pets"
-
+    
 # Helper functions
 print_color() {
     local color=$1

@@ -46,15 +46,29 @@
         echo "Killing kubectl port-forward processes..."
         pkill -f "kubectl port-forward" 2>/dev/null || true
         
+        # More aggressive namespace deletion
+        echo "Force deleting devops-pets namespace and all resources..."
+        if command -v kubectl >/dev/null 2>&1; then
+          # Delete all resources in namespace first
+          kubectl delete all --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete pvc --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete pv --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          
+          # Delete namespace with force
+          kubectl delete namespace {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          
+          # Wait and try again if still exists
+          sleep 5
+          if kubectl get namespace {{ namespace }} 2>/dev/null; then
+            echo "Namespace still exists, trying more aggressive deletion..."
+            kubectl patch namespace {{ namespace }} -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+            kubectl delete namespace {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          fi
+        fi
+        
         # Remove ONLY devops-pets images (preserve all other images and containers)
         echo "Removing devops-pets images only..."
         docker images | grep devops-pets | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
-        
-        # Delete devops-pets namespace only (PVs will be preserved)
-        echo "Deleting devops-pets namespace..."
-        if command -v kubectl >/dev/null 2>&1; then
-          kubectl delete namespace {{ namespace }} --force --grace-period=0 --timeout=10s 2>/dev/null || true
-        fi
         
         # Delete devops-pets cluster only
         echo "Deleting devops-pets cluster..."
@@ -63,7 +77,7 @@
         fi
         
         # Wait for everything to settle
-        sleep 3
+        sleep 5
         
         # Show final state
         echo "Final clusters:"
@@ -297,12 +311,13 @@
         
         # Kill any existing port forwarding
         pkill -f "kubectl port-forward" 2>/dev/null || true
+        sleep 2
         
         # Start port forwarding in background and save PIDs
-        kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080 > /dev/null 2>&1 &
+        nohup kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080 > /tmp/jenkins_pf.log 2>&1 &
         JENKINS_PF_PID=$!
         
-        kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025 > /dev/null 2>&1 &
+        nohup kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025 > /tmp/mailhog_pf.log 2>&1 &
         MAILHOG_PF_PID=$!
         
         # Save PIDs to files for later use
@@ -310,19 +325,19 @@
         echo $MAILHOG_PF_PID > /tmp/mailhog_pf.pid
         
         # Wait a moment for port forwarding to establish
-        sleep 3
+        sleep 5
         
-        # Check if port forwarding is working
-        if curl -s http://localhost:8082 > /dev/null 2>&1; then
-            echo "SUCCESS: Jenkins port forwarding is working"
+        # Check if processes are still running
+        if kill -0 $JENKINS_PF_PID 2>/dev/null; then
+            echo "SUCCESS: Jenkins port forwarding is running (PID: $JENKINS_PF_PID)"
         else
-            echo "INFO: Jenkins port forwarding may take a moment to establish"
+            echo "WARNING: Jenkins port forwarding may have failed"
         fi
         
-        if curl -s http://localhost:8025 > /dev/null 2>&1; then
-            echo "SUCCESS: MailHog port forwarding is working"
+        if kill -0 $MAILHOG_PF_PID 2>/dev/null; then
+            echo "SUCCESS: MailHog port forwarding is running (PID: $MAILHOG_PF_PID)"
         else
-            echo "INFO: MailHog port forwarding may take a moment to establish"
+            echo "WARNING: MailHog port forwarding may have failed"
         fi
         
         echo "OK! Port forwarding started!"
@@ -331,6 +346,7 @@
         echo ""
         echo "To stop port forwarding, run:"
         echo "kill \$(cat /tmp/jenkins_pf.pid) \$(cat /tmp/mailhog_pf.pid)"
+        echo "Or: pkill -f 'kubectl port-forward'"
       args:
         chdir: "{{ project_root }}"
       register: port_forwarding

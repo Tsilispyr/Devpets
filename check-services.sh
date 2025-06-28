@@ -79,7 +79,7 @@ check_pods() {
                 print_success "$pod_name: Ready ($status, $age)"
             else
                 print_error "$pod_name: Not ready ($ready, $status, $age)"
-            fi
+fi
         fi
     done
 }
@@ -109,7 +109,7 @@ check_services() {
             local age=$(echo "$service_line" | awk '{print $6}')
             
             print_success "$service_name: $service_type ($cluster_ip, $ports, $age)"
-        fi
+fi
     done
 }
 
@@ -140,7 +140,7 @@ check_deployments() {
                 print_success "$deployment_name: Ready ($ready, $up_to_date, $available, $age)"
             else
                 print_error "$deployment_name: Not ready ($ready, $up_to_date, $available, $age)"
-            fi
+fi
         fi
     done
 }
@@ -160,9 +160,9 @@ check_port_forwarding() {
     
     if [ -n "$mailhog_pf" ]; then
         print_success "MailHog port forwarding is active (PID: $mailhog_pf)"
-    else
+else
         print_error "MailHog port forwarding is not active"
-    fi
+fi
 }
 
 # Check service accessibility
@@ -172,10 +172,10 @@ check_accessibility() {
     # Check Jenkins
     if curl -s http://localhost:8082 >/dev/null 2>&1; then
         print_success "Jenkins is accessible at http://localhost:8082"
-    else
+else
         print_error "Jenkins is not accessible at http://localhost:8082"
-    fi
-    
+fi
+
     # Check MailHog
     if curl -s http://localhost:8025 >/dev/null 2>&1; then
         print_success "MailHog is accessible at http://localhost:8025"

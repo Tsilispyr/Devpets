@@ -90,21 +90,8 @@ deploy_infrastructure() {
 
 # Deploy applications (if present)
 deploy_applications() {
-    echo "Checking for applications to deploy..."
-    
-    cd "$TEMP_DIR/$PROJECT_DIR"
-    
-    # Check if frontend and backend directories exist
-    if [ -d "frontend" ] && [ -d "Ask" ]; then
-        echo "Deploying applications..."
-        
-        # Build and deploy applications
-        ansible-playbook -i localhost, -c local ansible/deploy-applications.yml
-        
-        echo "SUCCESS: Applications deployment completed"
-    else
-        echo "INFO: No applications found, skipping application deployment"
-    fi
+    echo "INFO: Skipping applications deployment - infrastructure only mode"
+    echo "INFO: Only PostgreSQL, MailHog, and Jenkins are deployed"
 }
 
 # Show deployment status
@@ -125,17 +112,12 @@ show_status() {
     echo "MailHog: http://localhost:8025"
     echo "PostgreSQL: localhost:5432"
     
-    # Check if applications are deployed
-    if kubectl get pods -n devops-pets | grep -q "frontend\|backend" 2>/dev/null; then
-        echo "Frontend: http://localhost:8081"
-        echo "Backend: http://localhost:8080"
-    fi
-    
     echo ""
     echo "Useful Commands:"
     echo "kubectl get pods -n devops-pets"
     echo "kubectl logs -n devops-pets <pod-name>"
     echo "kubectl describe pod -n devops-pets <pod-name>"
+    echo "pkill -f 'kubectl port-forward'  # Stop port forwarding"
 }
 
 # Cleanup function
@@ -167,8 +149,12 @@ main() {
     echo ""
     echo "SUCCESS: Deployment completed successfully!"
     echo "The project is now running in the devops-pets namespace."
-    echo "Access Jenkins at http://localhost:8082"
-    echo "Access MailHog at http://localhost:8025"
+    echo "Infrastructure services deployed:"
+    echo "- Jenkins: http://localhost:8082"
+    echo "- MailHog: http://localhost:8025"
+    echo "- PostgreSQL: localhost:5432"
+    echo ""
+    echo "To stop port forwarding: pkill -f 'kubectl port-forward'"
 }
 
 # Run main function
