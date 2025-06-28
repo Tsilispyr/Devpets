@@ -26,19 +26,22 @@ check_tools() {
         exit 1
     fi
     
+    # Check and install Docker
     if ! command -v docker &> /dev/null; then
-        echo "ERROR: Docker is not installed. Please install Docker first."
-        exit 1
+        echo "Docker not found. Installing Docker..."
+        install_docker
     fi
     
+    # Check and install Kind
     if ! command -v kind &> /dev/null; then
-        echo "ERROR: kind is not installed. Please install kind first."
-        exit 1
+        echo "Kind not found. Installing Kind..."
+        install_kind
     fi
     
+    # Check and install Kubectl
     if ! command -v kubectl &> /dev/null; then
-        echo "ERROR: kubectl is not installed. Please install kubectl first."
-        exit 1
+        echo "Kubectl not found. Installing Kubectl..."
+        install_kubectl
     fi
     
     # Check for Ansible and install if missing
@@ -48,6 +51,96 @@ check_tools() {
     fi
     
     echo "SUCCESS: All required tools are installed"
+}
+
+# Install Docker
+install_docker() {
+    echo "Installing Docker..."
+    
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            # Ubuntu/Debian
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates curl gnupg lsb-release
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            sudo usermod -aG docker $USER
+        elif command -v yum &> /dev/null; then
+            # CentOS/RHEL
+            sudo yum install -y yum-utils
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            sudo usermod -aG docker $USER
+        else
+            echo "ERROR: Unsupported Linux distribution. Please install Docker manually."
+            exit 1
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            brew install --cask docker
+        else
+            echo "ERROR: Homebrew not found. Please install Homebrew first or install Docker manually."
+            exit 1
+        fi
+    else
+        echo "ERROR: Unsupported operating system. Please install Docker manually."
+        exit 1
+    fi
+    
+    # Verify installation
+    if command -v docker &> /dev/null; then
+        echo "SUCCESS: Docker installed successfully"
+        echo "Docker version: $(docker --version)"
+    else
+        echo "ERROR: Failed to install Docker"
+        exit 1
+    fi
+}
+
+# Install Kind
+install_kind() {
+    echo "Installing Kind..."
+    
+    # Download and install Kind
+    KIND_VERSION="v0.20.0"
+    curl -Lo ./kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64
+    chmod +x ./kind
+    sudo mv ./kind /usr/local/bin/kind
+    
+    # Verify installation
+    if command -v kind &> /dev/null; then
+        echo "SUCCESS: Kind installed successfully"
+        echo "Kind version: $(kind version)"
+    else
+        echo "ERROR: Failed to install Kind"
+        exit 1
+    fi
+}
+
+# Install Kubectl
+install_kubectl() {
+    echo "Installing Kubectl..."
+    
+    # Download and install Kubectl
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/kubectl
+    
+    # Verify installation
+    if command -v kubectl &> /dev/null; then
+        echo "SUCCESS: Kubectl installed successfully"
+        echo "Kubectl version: $(kubectl version --client --short)"
+    else
+        echo "ERROR: Failed to install Kubectl"
+        exit 1
+    fi
 }
 
 # Install Ansible
@@ -106,7 +199,7 @@ download_project() {
     cd "$TEMP_DIR"
     
     # Download the zip file
-    curl -L -o devpets.zip "$REPO_URL"
+    curl -fsSL -o devpets.zip "$REPO_URL"
     
     if [ ! -f "devpets.zip" ]; then
         echo "ERROR: Failed to download project"
