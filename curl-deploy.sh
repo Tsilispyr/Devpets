@@ -1,192 +1,174 @@
 #!/bin/bash
 
-# DevOps Pets Infrastructure Deployment via curl
-# This script can be run directly from curl and deploys infrastructure only
-# Usage: curl -sSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
+# Auto-deploy script for pets-devops project
+# Downloads, extracts, and deploys the project automatically
 
-set -e  # Stop on any error
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+set -e
 
 # Configuration
-CLUSTER_NAME="devops-pets"
-NAMESPACE="devops-pets"
+REPO_URL="https://github.com/YOUR_USERNAME/pets-devops/archive/refs/heads/main.zip"
+PROJECT_DIR="pets-devops-main"
+TEMP_DIR="/tmp/pets-devops-deploy"
 
-# Helper functions
-print_color() {
-    local color=$1
-    local message=$2
-    echo -e "${color}${message}${NC}"
-}
+echo "🚀 Starting automatic deployment of pets-devops project..."
 
-print_header() {
-    print_color $BLUE "=========================================="
-    print_color $BLUE "$1"
-    print_color $BLUE "=========================================="
-}
-
-print_success() {
-    print_color $GREEN "✅ $1"
-}
-
-print_error() {
-    print_color $RED "❌ $1"
-}
-
-print_warning() {
-    print_color $YELLOW "⚠️  $1"
-}
-
-# Check if required tools are available
+# Check if required tools are installed
 check_tools() {
-    print_header "Checking Required Tools"
+    echo "🔍 Checking required tools..."
     
-    local tools=("docker" "kubectl" "kind" "ansible-playbook")
-    local missing_tools=()
-    
-    for tool in "${tools[@]}"; do
-        if ! command -v "$tool" &> /dev/null; then
-            missing_tools+=("$tool")
-        else
-            print_success "$tool is available"
-        fi
-    done
-    
-    if [ ${#missing_tools[@]} -ne 0 ]; then
-        print_error "Missing required tools: ${missing_tools[*]}"
-        print_warning "Please install the missing tools and try again"
+    if ! command -v curl &> /dev/null; then
+        echo "❌ curl is not installed. Please install curl first."
         exit 1
     fi
     
-    print_success "All required tools are available"
-}
-
-# Setup project directory
-setup_project() {
-    print_header "Setting up Project Directory"
-    
-    # Get the directory where this script is located
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PROJECT_ROOT="$SCRIPT_DIR"
-    
-    print_success "Project root: $PROJECT_ROOT"
-    
-    # Check if we're in the right directory
-    if [ ! -f "$PROJECT_ROOT/ansible/deploy-all.yml" ]; then
-        print_error "deploy-all.yml not found in $PROJECT_ROOT/ansible/"
-        print_error "Please run this script from the project root directory"
+    if ! command -v unzip &> /dev/null; then
+        echo "❌ unzip is not installed. Please install unzip first."
         exit 1
     fi
     
-    print_success "Project structure verified"
+    if ! command -v docker &> /dev/null; then
+        echo "❌ Docker is not installed. Please install Docker first."
+        exit 1
+    fi
+    
+    if ! command -v kind &> /dev/null; then
+        echo "❌ kind is not installed. Please install kind first."
+        exit 1
+    fi
+    
+    if ! command -v kubectl &> /dev/null; then
+        echo "❌ kubectl is not installed. Please install kubectl first."
+        exit 1
+    fi
+    
+    if ! command -v ansible &> /dev/null; then
+        echo "❌ ansible is not installed. Please install ansible first."
+        exit 1
+    fi
+    
+    echo "✅ All required tools are installed"
 }
 
-# Clean up existing deployment
-cleanup_existing() {
-    print_header "Cleaning up Existing Deployment"
+# Download and extract project
+download_project() {
+    echo "📥 Downloading project from GitHub..."
     
-    print_color $BLUE "Stopping any existing port forwarding..."
-    pkill -f "kubectl port-forward" 2>/dev/null || true
+    # Create temp directory
+    mkdir -p "$TEMP_DIR"
+    cd "$TEMP_DIR"
     
-    print_color $BLUE "Removing devops-pets images only..."
-    docker images | grep devops-pets | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+    # Download the zip file
+    curl -L -o pets-devops.zip "$REPO_URL"
     
-    print_color $BLUE "Deleting existing namespace (PVs will be preserved)..."
-    kubectl delete namespace "$NAMESPACE" --force --grace-period=0 --timeout=10s 2>/dev/null || true
+    if [ ! -f "pets-devops.zip" ]; then
+        echo "❌ Failed to download project"
+        exit 1
+    fi
     
-    print_color $BLUE "Deleting existing cluster..."
-    kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
+    echo "📦 Extracting project..."
+    unzip -q pets-devops.zip
     
-    print_success "Cleanup completed (jenkins_home, docker tools, PVs preserved)"
+    if [ ! -d "$PROJECT_DIR" ]; then
+        echo "❌ Failed to extract project"
+        exit 1
+    fi
+    
+    echo "✅ Project downloaded and extracted successfully"
 }
 
 # Deploy infrastructure
 deploy_infrastructure() {
-    print_header "Deploying Infrastructure"
+    echo "🏗️ Deploying infrastructure..."
     
-    print_color $BLUE "This will deploy:"
-    print_color $BLUE "- PostgreSQL database"
-    print_color $BLUE "- Jenkins CI/CD server"
-    print_color $BLUE "- MailHog email testing"
-    print_color $BLUE ""
-    print_color $BLUE "Frontend and Backend will be deployed separately later"
+    cd "$TEMP_DIR/$PROJECT_DIR"
     
-    # Change to project root
-    cd "$PROJECT_ROOT"
+    # Run the Ansible deployment
+    ansible-playbook -i localhost, -c local ansible/deploy-all.yml
     
-    # Run Ansible deployment
-    print_header "Running Ansible Infrastructure Deployment"
+    echo "✅ Infrastructure deployment completed"
+}
+
+# Deploy applications (if present)
+deploy_applications() {
+    echo "📱 Checking for applications to deploy..."
     
-    if ansible-playbook -i localhost, --connection=local "ansible/deploy-all.yml"; then
-        print_success "Infrastructure deployment completed successfully!"
+    cd "$TEMP_DIR/$PROJECT_DIR"
+    
+    # Check if frontend and backend directories exist
+    if [ -d "frontend" ] && [ -d "Ask" ]; then
+        echo "📱 Deploying applications..."
+        
+        # Build and deploy applications
+        ansible-playbook -i localhost, -c local ansible/deploy-applications.yml
+        
+        echo "✅ Applications deployment completed"
     else
-        print_error "Infrastructure deployment failed!"
-        print_warning "Check the logs above for details"
-        exit 1
+        echo "ℹ️ No applications found, skipping application deployment"
     fi
 }
 
-# Display final status
+# Show deployment status
 show_status() {
-    print_header "Deployment Status"
+    echo "📊 Deployment Status:"
+    echo "====================="
     
-    print_color $BLUE "Checking cluster status..."
+    # Wait a moment for pods to be ready
+    sleep 5
     
-    if kubectl get namespace "$NAMESPACE" &>/dev/null; then
-        print_success "Namespace '$NAMESPACE' exists"
-        
-        print_color $BLUE "Pods in namespace:"
-        kubectl get pods -n "$NAMESPACE" || print_warning "No pods found"
-        
-        print_color $BLUE "Services in namespace:"
-        kubectl get services -n "$NAMESPACE" || print_warning "No services found"
-        
-        print_color $BLUE "Deployments in namespace:"
-        kubectl get deployments -n "$NAMESPACE" || print_warning "No deployments found"
-        
-    else
-        print_error "Namespace '$NAMESPACE' not found"
+    # Check infrastructure services
+    echo "🏗️ Infrastructure Services:"
+    kubectl get pods -n pets-devops 2>/dev/null || echo "No pods found in pets-devops namespace"
+    
+    echo ""
+    echo "🌐 Port Forwarding:"
+    echo "Jenkins: http://localhost:8080"
+    echo "MailHog: http://localhost:8025"
+    echo "PostgreSQL: localhost:5432"
+    
+    # Check if applications are deployed
+    if kubectl get pods -n pets-devops | grep -q "frontend\|backend" 2>/dev/null; then
+        echo "Frontend: http://localhost:3000"
+        echo "Backend: http://localhost:8081"
     fi
     
-    print_header "Access URLs"
-    print_color $GREEN "Jenkins: http://localhost:8082"
-    print_color $GREEN "MailHog: http://localhost:8025"
-    print_color $BLUE "PostgreSQL: Running in cluster (no external access)"
-    
-    print_header "Useful Commands"
-    print_color $BLUE "Check all resources: kubectl get all -n $NAMESPACE"
-    print_color $BLUE "View logs: kubectl logs -n $NAMESPACE <pod-name>"
-    print_color $BLUE "Stop port forwarding: pkill -f 'kubectl port-forward'"
-    print_color $BLUE "Delete everything: kubectl delete namespace $NAMESPACE --force"
+    echo ""
+    echo "📋 Useful Commands:"
+    echo "kubectl get pods -n pets-devops"
+    echo "kubectl logs -n pets-devops <pod-name>"
+    echo "kubectl describe pod -n pets-devops <pod-name>"
 }
 
-# Main script execution
+# Cleanup function
+cleanup() {
+    echo "🧹 Cleaning up temporary files..."
+    rm -rf "$TEMP_DIR"
+}
+
+# Main execution
 main() {
-    print_header "DevOps Pets Infrastructure Deployment via curl"
+    # Set up cleanup on exit
+    trap cleanup EXIT
     
     # Check tools
     check_tools
     
-    # Setup project
-    setup_project
-    
-    # Cleanup existing deployment
-    cleanup_existing
+    # Download and extract
+    download_project
     
     # Deploy infrastructure
     deploy_infrastructure
     
-    # Show final status
+    # Deploy applications
+    deploy_applications
+    
+    # Show status
     show_status
     
-    print_header "Deployment Complete!"
-    print_success "Infrastructure is ready for use"
-    print_color $BLUE "Next step: Deploy frontend and backend applications"
+    echo ""
+    echo "🎉 Deployment completed successfully!"
+    echo "The project is now running in the pets-devops namespace."
+    echo "Access Jenkins at http://localhost:8080"
+    echo "Access MailHog at http://localhost:8025"
 }
 
 # Run main function
