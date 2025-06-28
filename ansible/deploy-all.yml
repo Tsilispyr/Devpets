@@ -10,6 +10,26 @@
     namespace: "devops-pets"
   
   tasks:
+    # Include prerequisites installation
+    - name: Include prerequisites installation
+      include_tasks: tasks/prerequisites.yml
+      when: ansible_os_family != "Windows"
+
+    # Include Docker installation
+    - name: Include Docker installation
+      include_tasks: tasks/install-docker.yml
+      when: ansible_os_family != "Windows"
+
+    # Include Kind installation
+    - name: Include Kind installation
+      include_tasks: tasks/install-kind.yml
+      when: ansible_os_family != "Windows"
+
+    # Include Kubectl installation
+    - name: Include Kubectl installation
+      include_tasks: tasks/install-kubectl.yml
+      when: ansible_os_family != "Windows"
+
     - name: Display deployment start
       debug:
         msg: |
@@ -53,16 +73,21 @@
           kubectl delete all --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           kubectl delete pvc --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           kubectl delete pv --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete deployment --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete service --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete configmap --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete secret --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           
           # Delete namespace with force
           kubectl delete namespace {{ namespace }} --force --grace-period=0 2>/dev/null || true
           
           # Wait and try again if still exists
-          sleep 5
+          sleep 10
           if kubectl get namespace {{ namespace }} 2>/dev/null; then
             echo "Namespace still exists, trying more aggressive deletion..."
             kubectl patch namespace {{ namespace }} -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
             kubectl delete namespace {{ namespace }} --force --grace-period=0 2>/dev/null || true
+            sleep 5
           fi
         fi
         
@@ -313,31 +338,42 @@
         pkill -f "kubectl port-forward" 2>/dev/null || true
         sleep 2
         
-        # Start port forwarding in background and save PIDs
-        nohup kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080 > /tmp/jenkins_pf.log 2>&1 &
-        JENKINS_PF_PID=$!
-        
-        nohup kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025 > /tmp/mailhog_pf.log 2>&1 &
-        MAILHOG_PF_PID=$!
-        
-        # Save PIDs to files for later use
-        echo $JENKINS_PF_PID > /tmp/jenkins_pf.pid
-        echo $MAILHOG_PF_PID > /tmp/mailhog_pf.pid
+        # Start port forwarding in background using screen or tmux if available
+        if command -v screen >/dev/null 2>&1; then
+          echo "Using screen for port forwarding..."
+          screen -dmS jenkins-pf bash -c "kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080"
+          screen -dmS mailhog-pf bash -c "kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025"
+        elif command -v tmux >/dev/null 2>&1; then
+          echo "Using tmux for port forwarding..."
+          tmux new-session -d -s jenkins-pf "kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080"
+          tmux new-session -d -s mailhog-pf "kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025"
+        else
+          echo "Using nohup for port forwarding..."
+          nohup kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080 > /tmp/jenkins_pf.log 2>&1 &
+          JENKINS_PF_PID=$!
+          
+          nohup kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025 > /tmp/mailhog_pf.log 2>&1 &
+          MAILHOG_PF_PID=$!
+          
+          # Save PIDs to files for later use
+          echo $JENKINS_PF_PID > /tmp/jenkins_pf.pid
+          echo $MAILHOG_PF_PID > /tmp/mailhog_pf.pid
+        fi
         
         # Wait a moment for port forwarding to establish
         sleep 5
         
-        # Check if processes are still running
-        if kill -0 $JENKINS_PF_PID 2>/dev/null; then
-            echo "SUCCESS: Jenkins port forwarding is running (PID: $JENKINS_PF_PID)"
+        # Check if port forwarding is working
+        if curl -s http://localhost:8082 > /dev/null 2>&1; then
+          echo "SUCCESS: Jenkins port forwarding is working"
         else
-            echo "WARNING: Jenkins port forwarding may have failed"
+          echo "INFO: Jenkins port forwarding may take a moment to establish"
         fi
         
-        if kill -0 $MAILHOG_PF_PID 2>/dev/null; then
-            echo "SUCCESS: MailHog port forwarding is running (PID: $MAILHOG_PF_PID)"
+        if curl -s http://localhost:8025 > /dev/null 2>&1; then
+          echo "SUCCESS: MailHog port forwarding is working"
         else
-            echo "WARNING: MailHog port forwarding may have failed"
+          echo "INFO: MailHog port forwarding may take a moment to establish"
         fi
         
         echo "OK! Port forwarding started!"
@@ -345,8 +381,8 @@
         echo "MailHog: http://localhost:8025"
         echo ""
         echo "To stop port forwarding, run:"
-        echo "kill \$(cat /tmp/jenkins_pf.pid) \$(cat /tmp/mailhog_pf.pid)"
-        echo "Or: pkill -f 'kubectl port-forward'"
+        echo "pkill -f 'kubectl port-forward'"
+        echo "Or: screen -S jenkins-pf -X quit && screen -S mailhog-pf -X quit"
       args:
         chdir: "{{ project_root }}"
       register: port_forwarding

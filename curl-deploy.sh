@@ -41,12 +41,60 @@ check_tools() {
         exit 1
     fi
     
+    # Check for Ansible and install if missing
     if ! command -v ansible &> /dev/null; then
-        echo "ERROR: ansible is not installed. Please install ansible first."
-        exit 1
+        echo "Ansible not found. Installing Ansible..."
+        install_ansible
     fi
     
     echo "SUCCESS: All required tools are installed"
+}
+
+# Install Ansible
+install_ansible() {
+    echo "Installing Ansible..."
+    
+    # Detect OS and install Ansible
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            # Ubuntu/Debian
+            sudo apt-get update
+            sudo apt-get install -y software-properties-common
+            sudo apt-add-repository --yes --update ppa:ansible/ansible
+            sudo apt-get install -y ansible
+        elif command -v yum &> /dev/null; then
+            # CentOS/RHEL
+            sudo yum install -y epel-release
+            sudo yum install -y ansible
+        elif command -v dnf &> /dev/null; then
+            # Fedora
+            sudo dnf install -y ansible
+        else
+            echo "ERROR: Unsupported Linux distribution. Please install Ansible manually."
+            exit 1
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            brew install ansible
+        else
+            echo "ERROR: Homebrew not found. Please install Homebrew first or install Ansible manually."
+            exit 1
+        fi
+    else
+        echo "ERROR: Unsupported operating system. Please install Ansible manually."
+        exit 1
+    fi
+    
+    # Verify installation
+    if command -v ansible &> /dev/null; then
+        echo "SUCCESS: Ansible installed successfully"
+        echo "Ansible version: $(ansible --version | head -1)"
+    else
+        echo "ERROR: Failed to install Ansible"
+        exit 1
+    fi
 }
 
 # Download and extract project
