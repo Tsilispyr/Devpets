@@ -10,74 +10,97 @@
     namespace: "devops-pets"
   
   tasks:
-    # Check if required tools are available (skip installation if no sudo)
-    - name: Check if required tools are available
-      shell: |
-        echo "=== CHECKING REQUIRED TOOLS ==="
-        
-        MISSING_TOOLS=()
-        
-        if ! command -v docker >/dev/null 2>&1; then
-          MISSING_TOOLS+=("docker")
-        fi
-        
-        if ! command -v kind >/dev/null 2>&1; then
-          MISSING_TOOLS+=("kind")
-        fi
-        
-        if ! command -v kubectl >/dev/null 2>&1; then
-          MISSING_TOOLS+=("kubectl")
-        fi
-        
-        if ! command -v curl >/dev/null 2>&1; then
-          MISSING_TOOLS+=("curl")
-        fi
-        
-        if ! command -v unzip >/dev/null 2>&1; then
-          MISSING_TOOLS+=("unzip")
-        fi
-        
-        if [ ${#MISSING_TOOLS[@]} -ne 0 ]; then
-          echo "ERROR: Missing tools: ${MISSING_TOOLS[*]}"
-          echo "Please install the missing tools manually:"
-          echo "Docker: https://docs.docker.com/get-docker/"
-          echo "Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation"
-          echo "Kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/"
-          exit 1
-        else
-          echo "SUCCESS: All required tools are available"
-          echo "Docker version: $(docker --version)"
-          echo "Kind version: $(kind version)"
-          echo "Kubectl version: $(kubectl version --client --short)"
-        fi
-      register: tools_check
+    # Check if required tools are available
+    - name: Check if Docker is available
+      command: docker --version
+      register: docker_check
       failed_when: false
+      changed_when: false
+
+    - name: Check if Kind is available
+      command: kind version
+      register: kind_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check if Kubectl is available
+      command: kubectl version --client --short
+      register: kubectl_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check if Curl is available
+      command: curl --version
+      register: curl_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check if Unzip is available
+      command: unzip -v
+      register: unzip_check
+      failed_when: false
+      changed_when: false
+
+    - name: Display tools status
+      debug:
+        msg: |
+          === TOOLS STATUS ===
+          Docker: {{ '✓ Available' if docker_check.rc == 0 else '✗ Missing' }}
+          Kind: {{ '✓ Available' if kind_check.rc == 0 else '✗ Missing' }}
+          Kubectl: {{ '✓ Available' if kubectl_check.rc == 0 else '✗ Missing' }}
+          Curl: {{ '✓ Available' if curl_check.rc == 0 else '✗ Missing' }}
+          Unzip: {{ '✓ Available' if unzip_check.rc == 0 else '✗ Missing' }}
+
+    - name: Fail if required tools are missing
+      fail:
+        msg: |
+          Missing required tools. Please install them manually:
+          Docker: https://docs.docker.com/get-docker/
+          Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
+          Kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/
+      when: docker_check.rc != 0 or kind_check.rc != 0 or kubectl_check.rc != 0 or curl_check.rc != 0 or unzip_check.rc != 0
+
+    - name: Display successful tools check
+      debug:
+        msg: |
+          === SUCCESS ===
+          All required tools are available!
+          Docker: {{ docker_check.stdout }}
+          Kind: {{ kind_check.stdout }}
+          Kubectl: {{ kubectl_check.stdout }}
+      when: docker_check.rc == 0 and kind_check.rc == 0 and kubectl_check.rc == 0 and curl_check.rc == 0 and unzip_check.rc == 0
 
     - name: Display deployment start
       debug:
         msg: |
           DEVOPS PETS INFRASTRUCTURE DEPLOYMENT
           =====================================
-          Following exact order with wait till ready:
-          1. Harsh cleanup (preserve jenkins_home, docker tools, PVs)
+          Following exact order with comprehensive wait till ready:
+          1. Harsh cleanup (preserve jenkins_home only)
           2. Create Kind cluster
           3. Create namespace with Jenkins home directory and PV/PVC templates
           4. Build and load custom images (Jenkins, PostgreSQL, MailHog)
           5. Apply manifests
-          6. Wait till ready for each service (using kubectl wait)
-          7. Port forward only at the end
+          6. Wait for each service deployment to be available
+          7. Wait for each pod to be fully ready
+          8. Wait for ALL pods to be ready and verify status
+          9. Final verification with detailed status
+          10. Port forward only when everything is ready
           
           All services (Jenkins, PostgreSQL, MailHog) run in same namespace
           Jenkins will have cluster access for future frontend/backend management
           
-          Cleanup preserves: jenkins_home, docker tools, PVs, other images/containers
-          Cleanup removes: devops-pets images only
+          Cleanup preserves: jenkins_home only
+          Cleanup refreshes: images, cluster, port forwarding, all resources
+          
+          WAITING STRATEGY: Comprehensive verification ensures all pods are fully operational before proceeding
 
-    # STEP 1: HARSH CLEANUP (preserve jenkins_home, docker tools, PVs)
-    - name: Harsh cleanup - preserve jenkins_home, docker tools, PVs
+    # STEP 1: HARSH CLEANUP (preserve jenkins_home only)
+    - name: Harsh cleanup - preserve jenkins_home only
       shell: |
         echo "=== STEP 1: HARSH CLEANUP ==="
-        echo "PRESERVING: jenkins_home, docker tools, PVs and system tools"
+        echo "PRESERVING: jenkins_home only"
+        echo "REFRESHING: images, cluster, port forwarding"
         
         # Show current state
         echo "Current clusters:"
@@ -85,14 +108,15 @@
         echo "Current namespaces:"
         kubectl get namespaces 2>/dev/null || echo "kubectl not available"
         
-        # Force kill kubectl port-forward processes only
-        echo "Killing kubectl port-forward processes..."
+        # Force kill ALL kubectl port-forward processes
+        echo "Killing ALL kubectl port-forward processes..."
         pkill -f "kubectl port-forward" 2>/dev/null || true
+        sleep 2
         
-        # More aggressive namespace deletion
-        echo "Force deleting devops-pets namespace and all resources..."
+        # Force delete devops-pets namespace and ALL resources
+        echo "Force deleting devops-pets namespace and ALL resources..."
         if command -v kubectl >/dev/null 2>&1; then
-          # Delete all resources in namespace first
+          # Delete ALL resources in namespace first
           kubectl delete all --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           kubectl delete pvc --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           kubectl delete pv --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
@@ -100,6 +124,11 @@
           kubectl delete service --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           kubectl delete configmap --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           kubectl delete secret --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete ingress --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete daemonset --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete statefulset --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete job --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
+          kubectl delete cronjob --all -n {{ namespace }} --force --grace-period=0 2>/dev/null || true
           
           # Delete namespace with force
           kubectl delete namespace {{ namespace }} --force --grace-period=0 2>/dev/null || true
@@ -114,12 +143,12 @@
           fi
         fi
         
-        # Remove ONLY devops-pets images (preserve all other images and containers)
-        echo "Removing devops-pets images only..."
+        # Remove ALL devops-pets images (force refresh)
+        echo "Removing ALL devops-pets images for fresh build..."
         docker images | grep devops-pets | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
         
-        # Delete devops-pets cluster only
-        echo "Deleting devops-pets cluster..."
+        # Delete devops-pets cluster (force refresh)
+        echo "Deleting devops-pets cluster for fresh creation..."
         if command -v kind >/dev/null 2>&1; then
           kind delete cluster --name {{ cluster_name }} 2>/dev/null || true
         fi
@@ -133,7 +162,7 @@
         echo "Final namespaces:"
         kubectl get namespaces 2>/dev/null || echo "kubectl not available"
         
-        echo "OK! HARSH CLEANUP completed (jenkins_home, docker tools, PVs preserved)"
+        echo "OK! HARSH CLEANUP completed (jenkins_home preserved, everything else refreshed)"
       register: cleanup_result
       failed_when: false
 
@@ -299,6 +328,10 @@
         kubectl wait --for=condition=available --timeout=300s deployment/postgres -n {{ namespace }}
         echo "OK! PostgreSQL deployment is ready!"
         
+        echo "Waiting for PostgreSQL pod to be fully ready..."
+        kubectl wait --for=condition=ready --timeout=300s pod -l app=postgres -n {{ namespace }}
+        echo "OK! PostgreSQL pod is fully ready!"
+        
         echo "Verifying PostgreSQL pod..."
         kubectl get pods -n {{ namespace }} | grep postgres
       args:
@@ -312,6 +345,10 @@
         
         kubectl wait --for=condition=available --timeout=300s deployment/mailhog -n {{ namespace }}
         echo "OK! MailHog deployment is ready!"
+        
+        echo "Waiting for MailHog pod to be fully ready..."
+        kubectl wait --for=condition=ready --timeout=300s pod -l app=mailhog -n {{ namespace }}
+        echo "OK! MailHog pod is fully ready!"
         
         echo "Verifying MailHog pod..."
         kubectl get pods -n {{ namespace }} | grep mailhog
@@ -327,16 +364,53 @@
         kubectl wait --for=condition=available --timeout=300s deployment/jenkins -n {{ namespace }}
         echo "OK! Jenkins deployment is ready!"
         
+        echo "Waiting for Jenkins pod to be fully ready..."
+        kubectl wait --for=condition=ready --timeout=300s pod -l app=jenkins -n {{ namespace }}
+        echo "OK! Jenkins pod is fully ready!"
+        
         echo "Verifying Jenkins pod..."
         kubectl get pods -n {{ namespace }} | grep jenkins
       args:
         chdir: "{{ project_root }}"
       register: jenkins_ready
 
-    # STEP 7: FINAL VERIFICATION
+    # STEP 7: ADDITIONAL VERIFICATION AND WAITING
+    - name: Wait for all pods to be ready
+      shell: |
+        echo "=== STEP 7: FINAL VERIFICATION - ALL PODS READY ==="
+        echo "Waiting for ALL pods to be in Running state..."
+        
+        # Wait for all pods to be running
+        kubectl wait --for=condition=ready --timeout=300s pod --all -n {{ namespace }}
+        echo "OK! All pods are ready!"
+        
+        # Additional verification
+        echo "Verifying all pods are running..."
+        kubectl get pods -n {{ namespace }} -o wide
+        
+        # Check if any pods are not ready
+        NOT_READY_PODS=$(kubectl get pods -n {{ namespace }} --no-headers | grep -v "Running\|Completed" | wc -l)
+        if [ "$NOT_READY_PODS" -gt 0 ]; then
+          echo "WARNING: Some pods are not ready:"
+          kubectl get pods -n {{ namespace }} --no-headers | grep -v "Running\|Completed"
+          exit 1
+        else
+          echo "SUCCESS: All pods are running!"
+        fi
+        
+        # Wait a bit more for services to be fully operational
+        echo "Waiting for services to be fully operational..."
+        sleep 10
+        
+        echo "OK! All infrastructure services are fully ready!"
+      args:
+        chdir: "{{ project_root }}"
+      register: all_pods_ready
+
+    # STEP 8: FINAL VERIFICATION
     - name: Final verification
       shell: |
-        echo "=== STEP 7: FINAL VERIFICATION ==="
+        echo "=== STEP 8: FINAL VERIFICATION ==="
         echo "All pods in {{ namespace }} namespace:"
         kubectl get pods -n {{ namespace }}
         
@@ -346,15 +420,18 @@
         echo "All deployments in {{ namespace }} namespace:"
         kubectl get deployments -n {{ namespace }}
         
+        echo "Pod status summary:"
+        kubectl get pods -n {{ namespace }} -o custom-columns="NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[0].ready,RESTARTS:.status.containerStatuses[0].restartCount"
+        
         echo "OK! All infrastructure services are deployed and ready!"
       args:
         chdir: "{{ project_root }}"
       register: final_verification
 
-    # STEP 8: SETUP PORT FORWARDING (only at the end)
+    # STEP 9: SETUP PORT FORWARDING (only at the end)
     - name: Setup port forwarding
       shell: |
-        echo "=== STEP 8: SETTING UP PORT FORWARDING ==="
+        echo "=== STEP 9: SETTING UP PORT FORWARDING ==="
         echo "Setting up port forwarding for Jenkins (8082) and MailHog (8025)..."
         
         # Kill any existing port forwarding
