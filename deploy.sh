@@ -140,16 +140,72 @@ run_ansible_deployment() {
     echo -e "${GREEN}✅ Deployment completed!${NC}"
 }
 
+# Function to run port forwarding with retry
+run_port_forwarding() {
+    echo -e "${YELLOW}🔌 Starting port forwarding...${NC}"
+    
+    cd "$REPO_DIR"
+    
+    # Function to start port forwarding with retry
+    start_port_forward_with_retry() {
+        local service=$1
+        local port=$2
+        local script=$3
+        local max_retries=3
+        local retry_count=0
+        
+        echo -e "${YELLOW}📡 Starting $service port forwarding on port $port...${NC}"
+        
+        while [ $retry_count -lt $max_retries ]; do
+            # Kill any existing port forwarding
+            pkill -f "kubectl port-forward.*$service" 2>/dev/null || true
+            
+            # Start port forwarding
+            if [ -f "ansible/$script" ]; then
+                bash "ansible/$script"
+            else
+                # Fallback to direct kubectl command
+                nohup kubectl port-forward svc/$service $port:$port -n devops-pets > /dev/null 2>&1 &
+                sleep 3
+            fi
+            
+            # Check if port forwarding is working
+            if curl -s http://localhost:$port >/dev/null 2>&1; then
+                echo -e "${GREEN}✅ $service port forwarding started successfully on port $port${NC}"
+                return 0
+            else
+                retry_count=$((retry_count + 1))
+                echo -e "${YELLOW}⚠️ $service port forwarding failed, retrying... (attempt $retry_count/$max_retries)${NC}"
+                sleep 5
+            fi
+        done
+        
+        echo -e "${RED}❌ Failed to start $service port forwarding after $max_retries attempts${NC}"
+        return 1
+    }
+    
+    # Start MailHog port forwarding
+    start_port_forward_with_retry "mailhog" "8025" "start-mailhog-port-forward.sh"
+    
+    # Start Jenkins port forwarding
+    start_port_forward_with_retry "jenkins" "8082" "start-jenkins-port-forward.sh"
+    
+    echo -e "${GREEN}✅ Port forwarding setup completed${NC}"
+}
+
 # Function to display final status
 display_status() {
     echo -e "${BLUE}================================${NC}"
     echo -e "${GREEN}🎉 DevOps Pets deployment completed!${NC}"
     echo -e "${BLUE}================================${NC}"
-    echo -e "${YELLOW}📋 Next steps:${NC}"
+    echo -e "${YELLOW}📋 Access URLs:${NC}"
+    echo -e "📧 MailHog: ${GREEN}http://localhost:8025${NC}"
+    echo -e "🔧 Jenkins: ${GREEN}http://localhost:8082${NC}"
+    echo -e "${BLUE}================================${NC}"
+    echo -e "${YELLOW}📋 Useful commands:${NC}"
     echo -e "1. Check services: ${GREEN}./check-services.sh${NC}"
-    echo -e "2. Access Jenkins: ${GREEN}http://localhost:8080${NC}"
-    echo -e "3. Access MailHog: ${GREEN}http://localhost:8025${NC}"
-    echo -e "4. View logs: ${GREEN}kubectl logs -n pets-devops${NC}"
+    echo -e "2. View logs: ${GREEN}kubectl logs -n devops-pets${NC}"
+    echo -e "3. Stop port forwarding: ${GREEN}pkill -f 'kubectl port-forward'${NC}"
     echo -e "${BLUE}================================${NC}"
 }
 
@@ -166,6 +222,9 @@ main() {
     
     # Run Ansible deployment
     run_ansible_deployment
+    
+    # Run port forwarding with retry
+    run_port_forwarding
     
     # Display final status
     display_status

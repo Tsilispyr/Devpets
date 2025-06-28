@@ -294,85 +294,6 @@
       failed_when: false
       when: jenkins_pod_count.stdout | int > 0
 
-    # Step 9: Start port forwarding
-    - name: Kill existing port forwards
-      shell: |
-        echo "🛑 Killing existing port forwards..."
-        pkill -f "kubectl port-forward" 2>/dev/null || true
-        sleep 3
-        echo "✅ Existing port forwards killed"
-      args:
-        chdir: "{{ project_root }}/.."
-      register: kill_port_forwards
-      failed_when: false
-
-    - name: Start MailHog port forwarding
-      shell: |
-        echo "📧 Starting MailHog port forward..."
-        nohup kubectl port-forward svc/mailhog 8025:8025 -n {{ namespace }} > /dev/null 2>&1 &
-        echo $! > /tmp/mailhog_port_forward.pid
-        sleep 3
-        echo "✅ MailHog port forward started (PID: $(cat /tmp/mailhog_port_forward.pid))"
-      args:
-        chdir: "{{ project_root }}/.."
-      register: mailhog_port_forward
-      failed_when: false
-
-    - name: Start Jenkins port forwarding
-      shell: |
-        echo "🔧 Starting Jenkins port forward..."
-        nohup kubectl port-forward svc/jenkins 8082:8080 -n {{ namespace }} > /dev/null 2>&1 &
-        echo $! > /tmp/jenkins_port_forward.pid
-        sleep 3
-        echo "✅ Jenkins port forward started (PID: $(cat /tmp/jenkins_port_forward.pid))"
-      args:
-        chdir: "{{ project_root }}/.."
-      register: jenkins_port_forward
-      failed_when: false
-
-    - name: Verify port forwarding
-      shell: |
-        echo "🔍 Verifying port forwarding..."
-        sleep 5
-        
-        # Check if ports are listening
-        if netstat -tuln 2>/dev/null | grep -q ":8025 "; then
-          echo "✅ MailHog port 8025 is listening"
-        else
-          echo "❌ MailHog port 8025 is not listening"
-        fi
-        
-        if netstat -tuln 2>/dev/null | grep -q ":8082 "; then
-          echo "✅ Jenkins port 8082 is listening"
-        else
-          echo "❌ Jenkins port 8082 is not listening"
-        fi
-        
-        # Check if processes are running
-        if ps aux | grep -v grep | grep -q "kubectl port-forward.*mailhog"; then
-          echo "✅ MailHog port forward process is running"
-        else
-          echo "❌ MailHog port forward process is not running"
-        fi
-        
-        if ps aux | grep -v grep | grep -q "kubectl port-forward.*jenkins"; then
-          echo "✅ Jenkins port forward process is running"
-        else
-          echo "❌ Jenkins port forward process is not running"
-        fi
-      args:
-        chdir: "{{ project_root }}/.."
-      register: port_forward_verify
-      failed_when: false
-
-    - name: Display port forwarding status
-      debug:
-        msg: |
-          Port Forwarding Status:
-          MailHog: {{ mailhog_port_forward.stdout }}
-          Jenkins: {{ jenkins_port_forward.stdout }}
-          Verification: {{ port_forward_verify.stdout }}
-
     - name: Display final status
       debug:
         msg: |
@@ -384,16 +305,9 @@
           ✅ PostgreSQL Database (Internal)
           ✅ MailHog Email Service  
           ✅ Jenkins CI/CD Server
-          ✅ Port Forwarding Active
           
-          Access URLs:
-          📧 MailHog: http://localhost:8025
-          🔧 Jenkins: http://localhost:8082
-          
-          Jenkins Setup:
-          1. Go to http://localhost:8082
-          2. Get admin password: kubectl exec -n {{ namespace }} deployment/jenkins -- cat /var/jenkins_home/secrets/initialAdminPassword
-          3. Complete setup wizard
+          Services are ready for port forwarding.
+          Port forwarding will be started by deploy.sh script.
           
           PostgreSQL (Internal):
           - Host: postgres.{{ namespace }}.svc.cluster.local
@@ -401,9 +315,9 @@
           - Database: petdb
           - Username: petuser
           
-          Port Forward Management:
-          - Check status: ps aux | grep port-forward
-          - Stop all: pkill -f 'kubectl port-forward'
-          - Restart: Run deploy.sh again
+          Next Steps:
+          - Port forwarding will be started automatically
+          - Access MailHog: http://localhost:8025
+          - Access Jenkins: http://localhost:8082
           
           ======================================== 
