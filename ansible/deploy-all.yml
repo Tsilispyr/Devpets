@@ -123,7 +123,7 @@
         nodes:
         - role: control-plane
           extraMounts:
-          - hostPath: ./jenkins_home
+          - hostPath: {{ project_root }}/../jenkins_home
             containerPath: /jenkins_home
         EOF
         echo "✅ Cluster created"

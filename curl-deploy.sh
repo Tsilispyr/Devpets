@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# DevOps Pets - Complete One-Line Deployment
-# Run with: curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh | bash
+# DevOps Pets - One-Line Deployment Script
+# This script can be run from anywhere to deploy the project
+# Usage: curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
 
 set -e
 
-echo "🚀 DevOps Pets - Complete Deployment"
-echo "==================================="
+echo "🚀 DevOps Pets - One-Line Deployment"
+echo "===================================="
 
 # Colors for output
 RED='\033[0;31m'
@@ -15,9 +16,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration - Use relative paths
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Configuration
+REPO_URL="https://github.com/Tsilispyr/Devpets.git"
+REPO_DIR="Devpets"
+CURRENT_DIR="$(pwd)"
 
 # Function to detect OS and install prerequisites
 install_prerequisites() {
@@ -100,84 +102,45 @@ install_prerequisites() {
     echo -e "${GREEN}✅ Prerequisites installed${NC}"
 }
 
-# Function to run Ansible deployment
-run_ansible_deployment() {
-    echo -e "${YELLOW}🔧 Running Ansible deployment...${NC}"
+# Function to setup repository
+setup_repository() {
+    echo -e "${YELLOW}📁 Setting up repository...${NC}"
     
-    # Change to project root directory
-    cd "$PROJECT_ROOT"
-    
-    # Check if inventory exists
-    if [ ! -f "ansible/inventory.ini" ]; then
-        echo -e "${RED}❌ Inventory file not found at $PROJECT_ROOT/ansible/inventory.ini${NC}"
-        exit 1
+    # Remove existing directory if it exists
+    if [ -d "$REPO_DIR" ]; then
+        echo -e "${YELLOW}📂 Repository exists, updating...${NC}"
+        cd "$REPO_DIR"
+        git fetch origin
+        git reset --hard origin/main
+        cd "$CURRENT_DIR"
+    else
+        echo -e "${YELLOW}📂 Cloning repository...${NC}"
+        git clone "$REPO_URL" "$REPO_DIR"
     fi
     
-    # Check if deploy-all.yml exists
-    if [ ! -f "ansible/deploy-all.yml" ]; then
-        echo -e "${RED}❌ deploy-all.yml not found at $PROJECT_ROOT/ansible/deploy-all.yml${NC}"
-        exit 1
-    fi
-    
-    # Run the deployment
-    echo -e "${BLUE}🚀 Starting Ansible deployment from $PROJECT_ROOT...${NC}"
-    ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
-    
-    echo -e "${GREEN}✅ Deployment completed!${NC}"
+    echo -e "${GREEN}✅ Repository ready at $CURRENT_DIR/$REPO_DIR${NC}"
 }
 
-# Function to run port forwarding with retry
-run_port_forwarding() {
-    echo -e "${YELLOW}🔌 Starting port forwarding...${NC}"
+# Function to run deployment
+run_deployment() {
+    echo -e "${YELLOW}🔧 Running deployment...${NC}"
     
-    # Change to project root directory
-    cd "$PROJECT_ROOT"
+    cd "$REPO_DIR"
     
-    # Function to start port forwarding with retry
-    start_port_forward_with_retry() {
-        local service=$1
-        local port=$2
-        local script=$3
-        local max_retries=3
-        local retry_count=0
-        
-        echo -e "${YELLOW}📡 Starting $service port forwarding on port $port...${NC}"
-        
-        while [ $retry_count -lt $max_retries ]; do
-            # Kill any existing port forwarding
-            pkill -f "kubectl port-forward.*$service" 2>/dev/null || true
-            
-            # Start port forwarding
-            if [ -f "ansible/$script" ]; then
-                bash "ansible/$script"
-            else
-                # Fallback to direct kubectl command
-                nohup kubectl port-forward svc/$service $port:$port -n devops-pets > /dev/null 2>&1 &
-                sleep 3
-            fi
-            
-            # Check if port forwarding is working
-            if curl -s http://localhost:$port >/dev/null 2>&1; then
-                echo -e "${GREEN}✅ $service port forwarding started successfully on port $port${NC}"
-                return 0
-            else
-                retry_count=$((retry_count + 1))
-                echo -e "${YELLOW}⚠️ $service port forwarding failed, retrying... (attempt $retry_count/$max_retries)${NC}"
-                sleep 5
-            fi
-        done
-        
-        echo -e "${RED}❌ Failed to start $service port forwarding after $max_retries attempts${NC}"
-        return 1
-    }
+    # Check if deploy.sh exists
+    if [ ! -f "deploy.sh" ]; then
+        echo -e "${RED}❌ deploy.sh not found${NC}"
+        exit 1
+    fi
     
-    # Start MailHog port forwarding
-    start_port_forward_with_retry "mailhog" "8025" "start-mailhog-port-forward.sh"
+    # Make deploy.sh executable
+    chmod +x deploy.sh
     
-    # Start Jenkins port forwarding
-    start_port_forward_with_retry "jenkins" "8082" "start-jenkins-port-forward.sh"
+    # Run the deployment
+    echo -e "${BLUE}🚀 Starting deployment...${NC}"
+    ./deploy.sh
     
-    echo -e "${GREEN}✅ Port forwarding setup completed${NC}"
+    echo -e "${GREEN}✅ Deployment completed!${NC}"
 }
 
 # Function to display final status
@@ -189,8 +152,11 @@ display_status() {
     echo -e "📧 MailHog: ${GREEN}http://localhost:8025${NC}"
     echo -e "🔧 Jenkins: ${GREEN}http://localhost:8082${NC}"
     echo -e "${BLUE}================================${NC}"
+    echo -e "${YELLOW}📋 Project location:${NC}"
+    echo -e "📍 ${GREEN}$CURRENT_DIR/$REPO_DIR${NC}"
+    echo -e "${BLUE}================================${NC}"
     echo -e "${YELLOW}📋 Useful commands:${NC}"
-    echo -e "1. Check services: ${GREEN}cd $PROJECT_ROOT && ./check-services.sh${NC}"
+    echo -e "1. Check services: ${GREEN}cd $REPO_DIR && ./check-services.sh${NC}"
     echo -e "2. View logs: ${GREEN}kubectl logs -n devops-pets${NC}"
     echo -e "3. Stop port forwarding: ${GREEN}pkill -f 'kubectl port-forward'${NC}"
     echo -e "${BLUE}================================${NC}"
@@ -198,19 +164,18 @@ display_status() {
 
 # Main execution
 main() {
-    echo -e "${BLUE}🚀 DevOps Pets - Complete Auto Deployment${NC}"
+    echo -e "${BLUE}🚀 DevOps Pets - One-Line Auto Deployment${NC}"
     echo -e "${BLUE}==========================================${NC}"
-    echo -e "${YELLOW}📍 Project root: $PROJECT_ROOT${NC}"
-    echo -e "${YELLOW}📍 Script directory: $SCRIPT_DIR${NC}"
+    echo -e "${YELLOW}📍 Current directory: $CURRENT_DIR${NC}"
     
     # Install prerequisites
     install_prerequisites
     
-    # Run Ansible deployment
-    run_ansible_deployment
+    # Setup repository
+    setup_repository
     
-    # Run port forwarding with retry
-    run_port_forwarding
+    # Run deployment
+    run_deployment
     
     # Display final status
     display_status
