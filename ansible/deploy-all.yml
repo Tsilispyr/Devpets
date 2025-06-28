@@ -10,25 +10,48 @@
     namespace: "devops-pets"
   
   tasks:
-    # Include prerequisites installation
-    - name: Include prerequisites installation
-      include_tasks: tasks/prerequisites.yml
-      when: ansible_os_family is defined and ansible_os_family != "Windows"
-
-    # Include Docker installation
-    - name: Include Docker installation
-      include_tasks: tasks/install-docker.yml
-      when: ansible_os_family is defined and ansible_os_family != "Windows"
-
-    # Include Kind installation
-    - name: Include Kind installation
-      include_tasks: tasks/install-kind.yml
-      when: ansible_os_family is defined and ansible_os_family != "Windows"
-
-    # Include Kubectl installation
-    - name: Include Kubectl installation
-      include_tasks: tasks/install-kubectl.yml
-      when: ansible_os_family is defined and ansible_os_family != "Windows"
+    # Check if required tools are available (skip installation if no sudo)
+    - name: Check if required tools are available
+      shell: |
+        echo "=== CHECKING REQUIRED TOOLS ==="
+        
+        MISSING_TOOLS=()
+        
+        if ! command -v docker >/dev/null 2>&1; then
+          MISSING_TOOLS+=("docker")
+        fi
+        
+        if ! command -v kind >/dev/null 2>&1; then
+          MISSING_TOOLS+=("kind")
+        fi
+        
+        if ! command -v kubectl >/dev/null 2>&1; then
+          MISSING_TOOLS+=("kubectl")
+        fi
+        
+        if ! command -v curl >/dev/null 2>&1; then
+          MISSING_TOOLS+=("curl")
+        fi
+        
+        if ! command -v unzip >/dev/null 2>&1; then
+          MISSING_TOOLS+=("unzip")
+        fi
+        
+        if [ ${#MISSING_TOOLS[@]} -ne 0 ]; then
+          echo "ERROR: Missing tools: ${MISSING_TOOLS[*]}"
+          echo "Please install the missing tools manually:"
+          echo "Docker: https://docs.docker.com/get-docker/"
+          echo "Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation"
+          echo "Kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/"
+          exit 1
+        else
+          echo "SUCCESS: All required tools are available"
+          echo "Docker version: $(docker --version)"
+          echo "Kind version: $(kind version)"
+          echo "Kubectl version: $(kubectl version --client --short)"
+        fi
+      register: tools_check
+      failed_when: false
 
     - name: Display deployment start
       debug:

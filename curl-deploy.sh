@@ -171,7 +171,26 @@ show_status() {
 # Cleanup function
 cleanup() {
     echo "Cleaning up temporary files..."
+    echo "PRESERVING:"
+    echo "- Jenkins home: ./jenkins_home/"
+    echo "- Docker images: devops-pets-*"
+    echo "- Kubernetes cluster: devops-pets"
+    echo "- Port forwarding processes"
+    echo ""
+    echo "REMOVING:"
+    echo "- Temporary download directory: $TEMP_DIR"
+    
+    # Keep a backup of important files if needed
+    if [ -d "$TEMP_DIR/$PROJECT_DIR" ]; then
+        echo "Creating backup of important files..."
+        mkdir -p ./deployment-backup
+        cp -r "$TEMP_DIR/$PROJECT_DIR/ansible" ./deployment-backup/ 2>/dev/null || true
+        cp -r "$TEMP_DIR/$PROJECT_DIR/k8s" ./deployment-backup/ 2>/dev/null || true
+        echo "Backup created at: ./deployment-backup/"
+    fi
+    
     rm -rf "$TEMP_DIR"
+    echo "Cleanup completed!"
 }
 
 # Wait for port forwarding to be ready
