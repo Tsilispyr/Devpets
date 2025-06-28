@@ -1,183 +1,172 @@
-# 🚀 DevOps Pets - Complete Automated Deployment
+# DevOps Pets - Complete Automated Deployment
 
-## 📋 Project Overview
+## Project Overview
 
-DevOps Pets is a comprehensive DevOps project featuring:
-- **Backend**: Spring Boot application with JWT authentication
-- **Frontend**: Vue.js application with modern UI
-- **Database**: PostgreSQL with persistent storage
-- **Email Testing**: MailHog for development
+DevOps Pets is a comprehensive DevOps automation project that demonstrates a complete CI/CD pipeline using modern technologies. This project automatically deploys a full-stack application with PostgreSQL, MailHog, and Jenkins in a Kubernetes environment.
+
+### Key Features
+
+- **Detect your operating system** automatically
+- **Install all required dependencies** (only if missing)
+- **Clone the repository** or extract from zip if present
+- **Verify project structure** and files
+- **Deploy the complete application** with Ansible
+- **Display access URLs** when finished
+- **Handle all prompts automatically** (non-interactive mode)
+- **Install missing tools automatically** (Docker, Kind, kubectl, Java, Node.js, etc.)
+
+### One-Line Deployment
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
+```
+
+### Manual Deployment
+
+```bash
+# Clone the repository
+git clone https://github.com/Tsilispyr/Devpets.git
+cd Devpets
+
+# Run deployment
+./deploy.sh
+```
+
+## System Requirements
+
+- **Operating System**: Linux (Ubuntu/Debian), macOS, or Windows with WSL
+- **Internet Connection**: Required for downloading dependencies
+- **Administrator Privileges**: Required for installing system packages
+- **Minimum RAM**: 4GB (8GB recommended)
+- **Disk Space**: 10GB free space
+
+## What Gets Deployed
+
+### Backend Application
+- **Technology**: Spring Boot (Java)
+- **Database**: PostgreSQL
+- **Authentication**: JWT-based
+- **API**: RESTful endpoints
+- **Port**: 8080 (internal)
+
+### Frontend Application
+- **Technology**: Vue.js 3
+- **UI Framework**: Modern responsive design
+- **Port**: 8081 (internal)
+
+### Jenkins CI/CD
+- **Version**: LTS
+- **Plugins**: Pre-installed with essential plugins
+- **Port**: 8082
+- **Security**: Unsecured mode (no login required)
+
+### MailHog
+- **Purpose**: Email testing service
+- **Port**: 8025
+- **Features**: Web UI for email inspection
+
+### PostgreSQL
+- **Version**: 15
+- **Database**: petdb
+- **Username**: petuser
+- **Port**: 5432 (internal)
+
+## Access URLs
+
+After successful deployment, you can access the services at:
+
+- **MailHog Email Testing**: http://localhost:8025
+- **Jenkins CI/CD**: http://localhost:8082
+- **Frontend Application**: http://localhost:8081 (if exposed)
+- **Backend API**: http://localhost:8080 (if exposed)
+
+## System Architecture
+
+The project uses a modern microservices architecture:
+
+- **Containerization**: Docker containers for all services
+- **Orchestration**: Kubernetes (Kind) for local development
+- **Automation**: Ansible for deployment automation
 - **CI/CD**: Jenkins with pre-configured pipelines
-- **Containerization**: Docker & Kubernetes (Kind)
-- **Automation**: Ansible for complete infrastructure automation
-
-## 🎯 Quick Start (One Command)
-
-### **For Complete Automation:**
-```bash
-# Download and execute the deployment script
-curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh | bash
-```
-
-**This single command will:**
-- ✅ **Detect your operating system** automatically
-- ✅ **Install all required dependencies** (only if missing)
-- ✅ **Clone the repository** or extract from zip if present
-- ✅ **Verify project structure** and files
-- ✅ **Deploy the complete application** with Ansible
-- ✅ **Display access URLs** when finished
-- ✅ **Handle all prompts automatically** (non-interactive mode)
-- ✅ **Install missing tools automatically** (Docker, Kind, kubectl, Java, Node.js, etc.)
-
-**No user interaction required!** The script detects when running via `curl | bash` and handles everything automatically, including installing any missing tools with proper permissions in `/usr/local/bin`.
-
-### **Alternative Methods:**
-
-#### **Method 1: Download & Execute**
-```bash
-curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh -o deploy.sh && chmod +x deploy.sh && ./deploy.sh
-```
-
-#### **Method 2: Git Clone & Execute**
-```bash
-git clone https://github.com/Tsilispyr/Devpets.git && cd Devpets && ./deploy.sh
-```
-
-#### **Method 3: Manual Deployment**
-```bash
-git clone https://github.com/Tsilispyr/Devpets.git && cd Devpets && sudo apt-get update && sudo apt-get install -y ansible && ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
-```
-
-#### **Method 4: If curl doesn't work**
-```bash
-# Download with wget
-wget -O deploy.sh https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh && chmod +x deploy.sh && ./deploy.sh
-
-# Or download manually and run
-# 1. Visit: https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh
-# 2. Save as deploy.sh
-# 3. Run: chmod +x deploy.sh && ./deploy.sh
-```
-
-## 🌐 Access URLs
-
-After successful deployment:
-- **Frontend**: http://localhost:8081
-- **Backend API**: http://localhost:8080
-- **Jenkins**: http://localhost:8082
-- **MailHog**: http://localhost:8025
-
-## 👥 Default Users
-
-- **User**: `user` / `user`
-- **Admin**: `admin` / `admin`
-- **Doctor**: `Doctor` / `Doctor`
-- **Shelter**: `shelter` / `shelter`
-
-## 🔐 Authentication System
-
-This application uses **JWT (JSON Web Token)** based authentication. Users can register and login through the application's built-in authentication system.
-
-## 👤 User Roles and Permissions
-
-### **User**
-- View animals in the Animal tab
-- Request adoption for single or multiple animals
-- Browse available pets
-
-### **Shelter**
-- View all available animals
-- Approve or reject adoption requests
-- Delete animals
-- Submit new animal requests for approval
-
-### **Doctor**
-- View all animals
-- Approve animal health checks
-- Review adoption requests
-
-### **Admin**
-- All permissions from Shelter and Doctor roles
-- Manage users (view, delete, modify roles)
-- Approve animal requests
-- Full system administration
-
-## 🏗️ System Architecture
-
-- **Frontend**: Vue.js with JWT authentication
-- **Backend**: Spring Boot REST API with JWT security
 - **Database**: PostgreSQL with persistent storage
-- **Email**: MailHog for development testing
-- **CI/CD**: Jenkins with automated pipelines
-- **Containerization**: Docker & Kubernetes (Kind)
-- **Automation**: Ansible for infrastructure management
+- **Email Testing**: MailHog for development email testing
 
-## 🛠️ What Gets Installed Automatically
+## What Gets Installed Automatically
 
-### **Tools (only if missing):**
-- ✅ Docker & Docker Compose
-- ✅ Kubernetes (Kind) & Kubectl
-- ✅ Java (OpenJDK 17) & Maven 3.9.5
-- ✅ Node.js 18 & npm
-- ✅ Git, Python3, pip
-- ✅ Ansible with required collections
+The deployment script automatically installs missing dependencies:
 
-### **Services Deployed:**
-- ✅ PostgreSQL Database
-- ✅ MailHog Email Service
-- ✅ Backend Application
-- ✅ Frontend Application
-- ✅ Jenkins CI/CD
+- **Docker & Docker Compose**
+- **Kubernetes (Kind) & Kubectl**
+- **Java (OpenJDK 17) & Maven 3.9.5**
+- **Node.js 18 & npm**
+- **Git, Python3, pip**
 
-## 🔧 Jenkins Pipeline
+## Troubleshooting
 
-The Jenkins pipeline automatically:
-1. **Checks** all required tools
-2. **Creates** Kind cluster if needed
-3. **Cleans** project resources
-4. **Builds** Docker images
-5. **Deploys** with Ansible
-6. **Verifies** deployment
-7. **Starts** port forwarding
+### Common Issues
 
-## 📚 Documentation
+1. **Port Already in Use**
+   ```bash
+   # Stop port forwarding
+   pkill -f 'kubectl port-forward'
+   
+   # Kill processes using ports
+   sudo lsof -ti:8025 | xargs kill -9
+   sudo lsof -ti:8082 | xargs kill -9
+   ```
 
-- **[Quick Start Guide](QUICK_START_GUIDE.md)** - Detailed step-by-step instructions
-- **[Installation Guide](INSTALLATION_GUIDE.md)** - Comprehensive setup guide
-- **[System Architecture](SYSTEM_ARCHITECTURE.md)** - Technical architecture details
+2. **Docker Permission Issues**
+   ```bash
+   # Add user to docker group
+   sudo usermod -aG docker $USER
+   # Log out and back in
+   ```
 
-## 🚀 Features
+3. **Kubernetes Cluster Issues**
+   ```bash
+   # Delete and recreate cluster
+   kind delete cluster --name devops-pets
+   ./deploy.sh
+   ```
 
-- **🔄 Complete Automation** - One command deployment with zero user interaction
-- **🛡️ Error Handling** - Robust error handling and recovery with automatic retries
-- **🔧 Tool Management** - Installs only missing tools, preserves existing ones
-- **🧹 Clean Deployment** - Fresh deployment every time with automatic cleanup
-- **📊 Health Monitoring** - Automatic health checks and system requirements validation
-- **🌐 Port Management** - Automatic port forwarding and service exposure
-- **🔐 Security** - JWT authentication system with role-based access
-- **📱 Responsive UI** - Modern Vue.js frontend with excellent UX
-- **🌍 Cross-Platform** - Works on Linux, macOS, and Windows (WSL)
-- **📡 Network Validation** - Automatic internet connectivity and system requirements checks
-- **🔄 Smart Recovery** - Handles corrupted directories and failed downloads automatically
+### Useful Commands
 
-## 🎉 Getting Started
+```bash
+# Check service status
+./check-services.sh
 
-1. **Run the deployment script** (see Quick Start above)
-2. **Wait for completion** (5-10 minutes)
-3. **Access the application** via the URLs above
-4. **Start using the system** with default users
+# View logs
+kubectl logs -n devops-pets
 
-## 📞 Support
+# Access Jenkins
+kubectl port-forward svc/jenkins 8082:8080 -n devops-pets
 
-If you encounter issues:
-1. Check the deployment logs
-2. Verify all services are running: `kubectl get pods -n devops-pets`
-3. Check service logs: `kubectl logs <pod-name> -n devops-pets`
-4. Restart services if needed: `kubectl rollout restart deployment/<name> -n devops-pets`
+# Access MailHog
+kubectl port-forward svc/mailhog 8025:8025 -n devops-pets
 
----
+# Clean up everything
+kind delete cluster --name devops-pets
+docker system prune -af
+```
 
-**🎯 DevOps Pets - Complete DevOps Automation in One Command!**
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test the deployment
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For issues and questions:
+- Create an issue on GitHub
+- Check the troubleshooting section
+- Review the logs for error messages
 
 
 

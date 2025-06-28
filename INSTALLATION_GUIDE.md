@@ -1,286 +1,307 @@
-# 🚀 DevOps Pets - Complete Installation & Usage Guide
+# DevOps Pets - Complete Installation & Usage Guide
 
-## 📋 Overview
+## Overview
 
-This document describes the complete installation, execution, and usage of the DevOps Pets application in a local development environment. The project now features **complete automation** with one-command deployment.
+DevOps Pets is a comprehensive DevOps automation project that demonstrates modern CI/CD practices. This guide provides detailed instructions for installing and using the complete system.
 
-## 🎯 Quick Start (Recommended)
+### What This Project Does
 
-### **One Command Deployment:**
-```bash
-# Download and execute the deployment script
-curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh | bash
-```
+- **Detect your operating system** automatically
+- **Install all required dependencies**
+- **Clone the repository**
+- **Verify project structure**
+- **Deploy the complete application**
+- **Display access URLs**
 
-This single command will:
-- ✅ Detect your operating system
-- ✅ Install all required dependencies
-- ✅ Clone the repository
-- ✅ Verify project structure
-- ✅ Deploy the complete application
-- ✅ Display access URLs
+## System Requirements
 
-## 🔐 Authentication System
+### Minimum Requirements
+- **Operating System**: Linux (Ubuntu 20.04+), macOS 10.15+, or Windows 10+ with WSL2
+- **RAM**: 4GB minimum (8GB recommended)
+- **Disk Space**: 10GB free space
+- **Internet Connection**: Required for downloading dependencies
+- **Administrator Privileges**: Required for installing system packages
 
-The application uses **JWT (JSON Web Token) authentication** for security. Users can register and login through the application without needing an external user management system.
+### Required Software (Installed Automatically)
+- **Docker** - Container runtime
+- **Kind** - Kubernetes in Docker
+- **Kubectl** - Kubernetes CLI
+- **Java** - OpenJDK 17
+- **Maven** - Build tool (version 3.9.5)
+- **Node.js** - v18.x
+- **npm** - Node Package Manager
+- **Git** - Version control
+- **Python 3** - Python interpreter
+- **pip** - Python package manager
+- **Docker Compose** - Multi-container apps
+- **Ansible** - Automation tool
 
-## ⚙️ System Requirements
+## Installation Methods
 
-### **Minimum Requirements:**
-- **Operating System**: Linux (Ubuntu/Debian), macOS, or Windows with WSL
-- **RAM**: At least 2GB available
-- **Disk Space**: At least 10GB free space
-- **Internet**: Stable internet connection
-- **Permissions**: Sudo/Administrator access
-
-### **What Gets Installed Automatically:**
-- ✅ **Docker** - Container runtime
-- ✅ **Kind** - Kubernetes in Docker
-- ✅ **Kubectl** - Kubernetes CLI
-- ✅ **Java** - OpenJDK 17
-- ✅ **Maven** - Build tool (version 3.9.5)
-- ✅ **Node.js** - v18.x
-- ✅ **npm** - Node Package Manager
-- ✅ **Git** - Version control
-- ✅ **Python 3** - Python interpreter
-- ✅ **pip** - Python package manager
-- ✅ **Docker Compose** - Multi-container apps
-- ✅ **Ansible** - Automation tool
-
-## 🚀 Installation Methods
-
-### **Method 1: Automated Script (Recommended)**
+### Method 1: One-Line Installation (Recommended)
 
 ```bash
-# Download and execute in one command
-curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
 ```
 
-### **Method 2: Manual Download & Execute**
+This command will:
+1. Download the deployment script
+2. Install all missing dependencies
+3. Clone the repository
+4. Deploy the complete application
+5. Display access URLs
 
-```bash
-# Download the script
-curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/deploy.sh -o deploy.sh
-
-# Make it executable
-chmod +x deploy.sh
-
-# Run the deployment
-./deploy.sh
-```
-
-### **Method 3: Git Clone & Execute**
+### Method 2: Manual Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/Tsilispyr/Devpets.git
-
-# Navigate to project directory
 cd Devpets
 
 # Run the deployment script
 ./deploy.sh
 ```
 
-### **Method 4: Manual Step-by-Step**
+### Method 3: From ZIP File
 
 ```bash
-# 1. Clone the repository
+# Download the ZIP file
+wget https://github.com/Tsilispyr/Devpets/archive/refs/heads/main.zip -O Devpets-main.zip
+
+# Extract and run
+unzip Devpets-main.zip
+cd Devpets-main
+./deploy.sh
+```
+
+### Method 4: Step-by-Step Manual Installation
+
+```bash
+# 1. Install system dependencies
+sudo apt update
+sudo apt install -y git curl wget unzip software-properties-common
+
+# 2. Install Ansible
+sudo apt-add-repository --yes --update ppa:ansible/ansible
+sudo apt install -y ansible
+
+# 3. Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# 4. Install Kind
+curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+chmod +x ./kind
+sudo mv ./kind /usr/local/bin/kind
+
+# 5. Install kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+# 6. Install Java and Maven
+sudo apt install -y openjdk-17-jdk maven
+
+# 7. Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 8. Clone and deploy
 git clone https://github.com/Tsilispyr/Devpets.git
 cd Devpets
-
-# 2. Install Ansible (Ubuntu/Debian)
-sudo apt update
-sudo apt install -y ansible python3-pip
-
-# 3. Install Ansible collections
-cd ansible
-ansible-galaxy collection install -r requirements.yml
-cd ..
-
-# 4. Run the deployment
-ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
+./deploy.sh
 ```
 
-## 🌐 Accessing Services
+## Accessing Services
 
-After successful deployment, access the services at:
+After successful deployment, you can access the following services:
 
-- **Frontend Application**: http://localhost:8081
-- **Backend API**: http://localhost:8080
-- **Jenkins CI/CD**: http://localhost:8082
+### Web Interfaces
 - **MailHog Email Testing**: http://localhost:8025
+- **Jenkins CI/CD**: http://localhost:8082
 
-## 👥 Default Users
+### Internal Services
+- **Frontend Application**: http://localhost:8081 (if exposed)
+- **Backend API**: http://localhost:8080 (if exposed)
+- **PostgreSQL Database**: localhost:5432 (internal)
 
-The system comes with pre-configured users:
+### Default Credentials
+- **Jenkins**: No authentication required (unsecured mode)
+- **Database**: petuser / petdb (internal access only)
 
-- **Regular User**: `user` / `user`
-- **Administrator**: `admin` / `admin`
-- **Doctor**: `Doctor` / `Doctor`
-- **Shelter**: `shelter` / `shelter`
+## What Gets Deployed
 
-## 🏗️ What Gets Deployed
+### Core Services
+1. **PostgreSQL Database**
+   - Version: 15
+   - Database: petdb
+   - Username: petuser
+   - Persistent storage enabled
 
-### **Kubernetes Services:**
-1. **Namespace**: `devops-pets`
-2. **PostgreSQL**: Database with persistent storage
-3. **MailHog**: Email testing service
-4. **Backend**: Spring Boot application
-5. **Frontend**: Vue.js application
-6. **Jenkins**: CI/CD with pre-configured jobs
+2. **MailHog Email Service**
+   - Purpose: Email testing for development
+   - Web UI: http://localhost:8025
+   - SMTP Port: 1025
 
-### **Port Configuration:**
-- **Frontend**: 8081
-- **Backend API**: 8080
-- **MailHog**: 8025
-- **Jenkins**: 8082
+3. **Jenkins CI/CD Server**
+   - Version: LTS
+   - Port: 8082
+   - Pre-installed plugins
+   - Unsecured mode (no login required)
 
-## 🔧 Jenkins Setup
+### Application Components
+1. **Backend Application**
+   - Technology: Spring Boot (Java)
+   - Authentication: JWT-based
+   - API: RESTful endpoints
+   - Database: PostgreSQL
 
-### **Pre-configured Features:**
-- ✅ **Credentials**: Git and kubeconfig automatically configured
-- ✅ **Job**: `backend-pipeline-devops-pets` ready to use
-- ✅ **Security**: Unsecured mode (no login required)
-- ✅ **Pipeline**: Complete CI/CD with Ansible integration
+2. **Frontend Application**
+   - Technology: Vue.js 3
+   - UI: Modern responsive design
+   - Authentication: JWT integration
 
-### **Using Jenkins:**
-1. Open http://localhost:8082
-2. Find the job `backend-pipeline-devops-pets`
-3. Click "Build Now"
-4. Monitor the pipeline execution
+## Jenkins Setup
 
-## 📊 Deployment Process
+The Jenkins server comes pre-configured with:
 
-The automated deployment includes:
+- **Credentials**: Git and kubeconfig automatically configured
+- **Job**: `backend-pipeline-devops-pets` ready to use
+- **Security**: Unsecured mode (no login required)
+- **Pipeline**: Complete CI/CD with Ansible integration
 
-1. **System Check** - Verify OS and requirements
-2. **Dependency Installation** - Install missing tools only
-3. **Repository Setup** - Clone or extract project
-4. **Tool Verification** - Ensure all tools are available
-5. **Kind Cluster** - Create Kubernetes cluster if needed
-6. **Clean Deployment** - Remove old project resources
-7. **Image Building** - Build fresh Docker images
-8. **Kubernetes Deployment** - Deploy all services
-9. **Health Verification** - Wait for all services to be ready
-10. **Port Forwarding** - Expose services locally
-11. **Success Display** - Show access URLs
+### Jenkins Features
+- Pre-installed essential plugins
+- Host tools mounted (docker, kubectl, git, maven, node)
+- Persistent configuration storage
+- Automatic pipeline execution
 
-## 🔍 Troubleshooting
+### Accessing Jenkins
+1. Open http://localhost:8082 in your browser
+2. No login required (unsecured mode)
+3. Navigate to the `backend-pipeline-devops-pets` job
+4. Click "Build Now" to start the pipeline
 
-### **Common Issues:**
+## Troubleshooting
 
-#### **1. Permission Errors**
+### Common Issues
+
+#### 1. Port Already in Use
 ```bash
-# If sudo password is required
-ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml --ask-become-pass
+# Stop existing port forwarding
+pkill -f 'kubectl port-forward'
+
+# Kill processes using specific ports
+sudo lsof -ti:8025 | xargs kill -9
+sudo lsof -ti:8082 | xargs kill -9
 ```
 
-#### **2. Network Connectivity Issues**
+#### 2. Docker Permission Issues
 ```bash
-# Check internet connectivity
-ping google.com
-curl -I https://download.docker.com
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# Log out and back in, or run:
+newgrp docker
 ```
 
-#### **3. Disk Space Issues**
+#### 3. Kubernetes Cluster Issues
 ```bash
-# Check available disk space
-df -h
+# Delete and recreate cluster
+kind delete cluster --name devops-pets
+./deploy.sh
 ```
 
-#### **4. Memory Issues**
+#### 4. Ansible Connection Issues
 ```bash
-# Check available RAM
-free -h
+# Check Ansible installation
+ansible --version
+
+# Reinstall Ansible if needed
+sudo apt remove ansible
+sudo apt-add-repository --yes --update ppa:ansible/ansible
+sudo apt install -y ansible
 ```
 
-#### **5. Port Conflicts**
+### Useful Commands
+
 ```bash
-# Check if ports are already in use
-netstat -tulpn | grep :808
-```
+# Check service status
+./check-services.sh
 
-### **Service Logs:**
-  ```bash
-# Jenkins logs
-kubectl logs deployment/jenkins -n devops-pets
-
-# Backend logs
-kubectl logs deployment/backend -n devops-pets
-
-# Frontend logs
-kubectl logs deployment/frontend -n devops-pets
-
-# PostgreSQL logs
-kubectl logs deployment/postgres -n devops-pets
-```
-
-### **Service Status:**
-```bash
-# Check all pods status
+# View Kubernetes pods
 kubectl get pods -n devops-pets
 
-# Check all services
-kubectl get services -n devops-pets
+# View service logs
+kubectl logs -n devops-pets
 
-# Check all deployments
-kubectl get deployments -n devops-pets
+# Restart services
+kubectl rollout restart deployment/jenkins -n devops-pets
+kubectl rollout restart deployment/mailhog -n devops-pets
+
+# Access service shells
+kubectl exec -it <pod-name> -n devops-pets -- /bin/bash
+
+# Check cluster status
+kind get clusters
+kubectl cluster-info
 ```
 
-## 🧹 Cleanup
+### Log Locations
+- **Application Logs**: `kubectl logs -n devops-pets`
+- **Jenkins Logs**: `kubectl logs -n devops-pets deployment/jenkins`
+- **MailHog Logs**: `kubectl logs -n devops-pets deployment/mailhog`
+- **System Logs**: `journalctl -u docker`
 
-### **Complete Cleanup:**
+## Maintenance
+
+### Updating the Application
 ```bash
-# Remove all project resources
-ansible-playbook -i ansible/inventory.ini ansible/clean-and-rebuild.yml
+# Pull latest changes
+cd Devpets
+git pull origin main
+
+# Redeploy
+./deploy.sh
 ```
 
-### **Partial Cleanup:**
+### Cleaning Up
 ```bash
-# Remove only Kubernetes resources
+# Stop all services
 kubectl delete namespace devops-pets
 
-# Remove only Docker images
-docker rmi $(docker images | grep devops-pets | awk '{print $3}')
+# Delete cluster
+kind delete cluster --name devops-pets
+
+# Clean Docker
+docker system prune -af
+
+# Remove project files
+rm -rf Devpets
 ```
 
-## 🔄 Redeployment
-
-### **Fresh Redeployment:**
+### Backup and Restore
 ```bash
-# Clean and redeploy everything
-ansible-playbook -i ansible/inventory.ini ansible/clean-and-rebuild.yml
+# Backup Jenkins configuration
+cp -r jenkins_home jenkins_home_backup
+
+# Restore Jenkins configuration
+rm -rf jenkins_home
+cp -r jenkins_home_backup jenkins_home
 ```
 
-### **Update Deployment:**
-```bash
-# Deploy without cleaning (faster)
-ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
-```
-
-## 📞 Support
-
-If you encounter issues:
-
-1. **Check the deployment logs** for error messages
-2. **Verify all services are running**: `kubectl get pods -n devops-pets`
-3. **Check service logs**: `kubectl logs <pod-name> -n devops-pets`
-4. **Restart services if needed**: `kubectl rollout restart deployment/<name> -n devops-pets`
-5. **Check system resources**: CPU, RAM, and disk space
-
-## 🎉 Success!
+## Success!
 
 After successful deployment, you will have:
-- ✅ Complete DevOps environment
-- ✅ Automated CI/CD pipeline
-- ✅ Containerized applications
-- ✅ Kubernetes orchestration
-- ✅ Email testing capabilities
-- ✅ Database persistence
-- ✅ JWT authentication system
-- ✅ Modern responsive UI
 
----
+- **Complete DevOps environment**
+- **Automated CI/CD pipeline**
+- **Containerized applications**
+- **Kubernetes orchestration**
+- **Email testing capabilities**
+- **Database persistence**
+- **JWT authentication system**
+- **Modern responsive UI**
 
-**🚀 DevOps Pets - Complete Automation in One Command!**
+**DevOps Pets - Complete Automation in One Command!**

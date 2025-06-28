@@ -1,78 +1,82 @@
 #!/bin/bash
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BOLD_GREEN='\033[1;32m'
+BOLD_RED='\033[1;31m'
+NC='\033[0m' # No Color
+
 echo "=== DevOps Pets Services Status ==="
-echo ""
 
 # Check Jenkins
-echo "🔧 Jenkins Status:"
-if curl -s http://localhost:8082 >/dev/null; then
-    echo "✅ Jenkins is running at http://localhost:8082"
+echo "Jenkins Status:"
+if curl -s http://localhost:8082 >/dev/null 2>&1; then
+    echo -e "${BOLD_GREEN}OK! Jenkins is running at http://localhost:8082${NC}"
 else
-    echo "❌ Jenkins is not accessible"
+    echo -e "${BOLD_RED}ERR! Jenkins is not accessible${NC}"
 fi
 
 # Check Jenkins container
 echo ""
-echo "🐳 Jenkins Container:"
+echo "Jenkins Container:"
 if docker ps | grep -q jenkins; then
     docker ps | grep jenkins
 else
-    echo "❌ Jenkins container not running"
+    echo -e "${BOLD_RED}ERR! Jenkins container not running${NC}"
 fi
 
 # Check MailHog
 echo ""
-echo "📧 MailHog Status:"
-if curl -s http://localhost:8025 >/dev/null; then
-    echo "✅ MailHog is running at http://localhost:8025"
+echo "MailHog Status:"
+if curl -s http://localhost:8025 >/dev/null 2>&1; then
+    echo -e "${BOLD_GREEN}OK! MailHog is running at http://localhost:8025${NC}"
 else
-    echo "❌ MailHog is not accessible"
+    echo -e "${BOLD_RED}ERR! MailHog is not accessible${NC}"
 fi
 
 # Check MailHog port forwarding
 echo ""
-echo "🔗 MailHog Port Forwarding:"
-if ps aux | grep -q "kubectl port-forward.*mailhog"; then
-    echo "✅ MailHog port forwarding is active"
-    ps aux | grep "kubectl port-forward.*mailhog" | grep -v grep
+echo "MailHog Port Forwarding:"
+if pgrep -f "kubectl port-forward.*mailhog" >/dev/null; then
+    echo -e "${BOLD_GREEN}OK! MailHog port forwarding is active${NC}"
+    pgrep -f "kubectl port-forward.*mailhog"
 else
-    echo "❌ MailHog port forwarding not found"
+    echo -e "${BOLD_RED}ERR! MailHog port forwarding not found${NC}"
 fi
 
 # Check Kubernetes cluster
 echo ""
-echo "☸️  Kubernetes Cluster:"
+echo "Kubernetes Cluster:"
 if kind get clusters | grep -q devops-pets; then
-    echo "✅ Kind cluster 'devops-pets' exists"
+    echo -e "${BOLD_GREEN}OK! Kind cluster 'devops-pets' exists${NC}"
 else
-    echo "❌ Kind cluster 'devops-pets' not found"
+    echo -e "${BOLD_RED}ERR! Kind cluster 'devops-pets' not found${NC}"
 fi
 
-# Check namespace and pods
+# Check Kubernetes pods
 echo ""
-echo "📦 Kubernetes Pods in devops-pets namespace:"
+echo "Kubernetes Pods in devops-pets namespace:"
 if kubectl get namespace devops-pets >/dev/null 2>&1; then
     kubectl get pods -n devops-pets
+    echo ""
+    echo "Kubernetes Services:"
+    kubectl get svc -n devops-pets
 else
-    echo "❌ Namespace 'devops-pets' not found"
-fi
-
-# Check services
-echo ""
-echo "🌐 Kubernetes Services:"
-if kubectl get namespace devops-pets >/dev/null 2>&1; then
-    kubectl get services -n devops-pets
-else
-    echo "❌ Cannot check services - namespace not found"
+    echo -e "${BOLD_RED}ERR! Namespace 'devops-pets' not found${NC}"
 fi
 
 echo ""
-echo "=== Quick Access Links ==="
-echo "Jenkins: http://localhost:8082"
-echo "MailHog: http://localhost:8025"
-echo ""
-echo "=== Useful Commands ==="
-echo "Restart Jenkins: ./start-jenkins-with-tools.sh"
+echo "Useful commands:"
 echo "View Jenkins logs: docker logs jenkins-devops-pets"
 echo "Check cluster: kind get clusters"
-echo "Check pods: kubectl get pods -n devops-pets" 
+echo "Check pods: kubectl get pods -n devops-pets"
+echo ""
+echo "Port Forwarding Processes:"
+if pgrep -f "kubectl port-forward" >/dev/null; then
+    pgrep -f "kubectl port-forward" -l
+else
+    echo -e "${BOLD_RED}ERR! Cannot check services - namespace not found${NC}"
+fi 

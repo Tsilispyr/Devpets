@@ -301,31 +301,31 @@ deploy_application() {
 
 # Function to display access information
 display_access_info() {
-    print_success "🎉 DevOps Pets is now running!"
+    print_success "DevOps Pets is now running!"
     echo
-    echo "🌐 Access URLs:"
+    echo "Access URLs:"
     echo "   Frontend:    http://localhost:8081"
     echo "   Backend API: http://localhost:8080"
     echo "   Jenkins:     http://localhost:8082"
     echo "   Mailhog:     http://localhost:8025"
     echo
-    echo "📋 Useful commands:"
+    echo "Useful commands:"
     echo "   Check pods:     kubectl get pods -n devops-pets"
     echo "   Check services: kubectl get services -n devops-pets"
     echo "   View logs:      kubectl logs <pod-name> -n devops-pets"
     echo
-    echo "🔧 To stop the application:"
+    echo "To stop the application:"
     echo "   kubectl delete namespace devops-pets"
     echo
-    echo "🔄 To update the application:"
+    echo "To update the application:"
     echo "   curl -sSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/auto-deploy.sh | bash"
     echo
 }
 
 # Main execution
 main() {
-    echo "🚀 DevOps Pets - Universal Auto-Deployment"
-    echo "=========================================="
+    echo "DevOps Pets - Universal Auto-Deployment"
+    echo "======================================"
     echo
     
     # Check system requirements

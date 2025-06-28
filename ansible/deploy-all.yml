@@ -13,7 +13,7 @@
     - name: Display deployment start
       debug:
         msg: |
-          🚀 DEVOPS PETS COMPLETE DEPLOYMENT
+          DEVOPS PETS COMPLETE DEPLOYMENT
           =================================
           This will deploy PostgreSQL, MailHog, and Jenkins
           with automatic port forwarding at the end.
@@ -21,7 +21,7 @@
     # Step 1: Cleanup existing resources
     - name: Cleanup existing resources
       shell: |
-        echo "🧹 NUCLEAR CLEANUP - Force closing everything..."
+        echo "NUCLEAR CLEANUP - Force closing everything..."
         
         # Force kill ALL processes
         echo "Force killing ALL processes..."
@@ -64,7 +64,7 @@
         # Wait for everything to settle
         sleep 3
         
-        echo "✅ NUCLEAR CLEANUP completed (jenkins_home preserved)"
+        echo "OK! NUCLEAR CLEANUP completed (jenkins_home preserved)"
       args:
         chdir: "{{ project_root }}"
       register: cleanup_result
@@ -86,7 +86,7 @@
       debug:
         msg: |
           jenkins_home preserved after cleanup: {{ jenkins_home_preserved.stat.exists }}
-          jenkins_home is directory: {{ jenkins_home_preserved.stat.isdir }}
+          jenkins_home is directory: {{ jenkins_home_preserved.stat.isdir if jenkins_home_preserved.stat.exists else 'N/A' }}
 
     # Step 1.5: Manual namespace cleanup if needed
     - name: Check if namespace still exists
@@ -113,7 +113,7 @@
 
     - name: Create Kind cluster
       shell: |
-        echo "🏗️ Creating Kind cluster {{ cluster_name }}..."
+        echo "Creating Kind cluster {{ cluster_name }}..."
         kind create cluster --name {{ cluster_name }} --config - << 'EOF'
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -126,25 +126,25 @@
           - hostPath: {{ project_root }}/jenkins_home
             containerPath: /jenkins_home
         EOF
-        echo "✅ Cluster created"
+        echo "OK! Cluster created"
       args:
         chdir: "{{ project_root }}"
       register: cluster_create
 
     - name: Copy jenkins_home to kind node
       shell: |
-        echo "📁 Copying jenkins_home to kind node..."
+        echo "Copying jenkins_home to kind node..."
         kind cp jenkins_home/ {{ cluster_name }}-control-plane:/jenkins_home/
-        echo "✅ Files copied"
+        echo "OK! Files copied"
       args:
         chdir: "{{ project_root }}"
       register: jenkins_copy
-      when: jenkins_home_verify is defined
+      when: jenkins_home_preserved.stat.exists
 
     # Step 3: Export kubeconfig
     - name: Export kubeconfig
       shell: |
-        echo "📋 Exporting kubeconfig..."
+        echo "Exporting kubeconfig..."
         kind export kubeconfig --name {{ cluster_name }}
         kubectl cluster-info
       args:
@@ -161,7 +161,7 @@
       debug:
         msg: |
           jenkins_home exists: {{ jenkins_home_stat.stat.exists }}
-          jenkins_home is directory: {{ jenkins_home_stat.stat.isdir }}
+          jenkins_home is directory: {{ jenkins_home_stat.stat.isdir if jenkins_home_stat.stat.exists else 'N/A' }}
 
     - name: List jenkins_home contents
       find:
@@ -178,83 +178,83 @@
         echo "Checking mount in kind node..."
         kind exec --name {{ cluster_name }} -- ls -la /jenkins_home
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: kind_mount_check
       failed_when: false
 
     # Step 4: Create namespace
     - name: Create namespace
       shell: |
-        echo "📁 Creating namespace {{ namespace }}..."
+        echo "Creating namespace {{ namespace }}..."
         kubectl create namespace {{ namespace }} 2>/dev/null || true
         kubectl get namespace {{ namespace }}
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: namespace_create
 
     # Step 5: Deploy PostgreSQL
     - name: Deploy PostgreSQL
       shell: |
-        echo "🐘 Deploying PostgreSQL..."
+        echo "Deploying PostgreSQL..."
         kubectl apply -f {{ k8s_path }}/postgres/postgres-secret.yaml -n {{ namespace }}
         kubectl apply -f {{ k8s_path }}/postgres/postgres-pvc.yaml -n {{ namespace }}
         kubectl apply -f {{ k8s_path }}/postgres/postgres-deployment.yaml -n {{ namespace }}
         kubectl apply -f {{ k8s_path }}/postgres/postgres-service.yaml -n {{ namespace }}
-        echo "✅ PostgreSQL deployed"
+        echo "OK! PostgreSQL deployed"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: postgres_deploy
 
     # Step 6: Deploy MailHog
     - name: Deploy MailHog
       shell: |
-        echo "📧 Deploying MailHog..."
+        echo "Deploying MailHog..."
         kubectl apply -f {{ k8s_path }}/mailhog/mailhog-deployment.yaml -n {{ namespace }}
         kubectl apply -f {{ k8s_path }}/mailhog/mailhog-service.yaml -n {{ namespace }}
-        echo "✅ MailHog deployed"
+        echo "OK! MailHog deployed"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: mailhog_deploy
 
     # Step 7: Deploy Jenkins
     - name: Deploy Jenkins
       shell: |
-        echo "🔧 Deploying Jenkins..."
+        echo "Deploying Jenkins..."
         kubectl apply -f {{ k8s_path }}/jenkins/jenkins-rbac.yaml
         kubectl apply -f {{ k8s_path }}/jenkins/jenkins-pvc.yaml -n {{ namespace }}
         kubectl apply -f {{ k8s_path }}/jenkins/jenkins-deployment.yaml -n {{ namespace }}
         kubectl apply -f {{ k8s_path }}/jenkins/jenkins-service.yaml -n {{ namespace }}
-        echo "✅ Jenkins deployed"
+        echo "OK! Jenkins deployed"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: jenkins_deploy
 
     # Step 8: Wait for services to be ready
     - name: Wait for PostgreSQL
       shell: |
-        echo "⏳ Waiting for PostgreSQL to be ready..."
+        echo "Waiting for PostgreSQL to be ready..."
         kubectl wait --for=condition=available --timeout=300s deployment/postgres -n {{ namespace }}
-        echo "✅ PostgreSQL is ready"
+        echo "OK! PostgreSQL is ready"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: postgres_wait
 
     - name: Wait for MailHog
       shell: |
-        echo "⏳ Waiting for MailHog to be ready..."
+        echo "Waiting for MailHog to be ready..."
         kubectl wait --for=condition=available --timeout=300s deployment/mailhog -n {{ namespace }}
-        echo "✅ MailHog is ready"
+        echo "OK! MailHog is ready"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: mailhog_wait
 
     - name: Wait for Jenkins
       shell: |
-        echo "⏳ Waiting for Jenkins to be ready..."
+        echo "Waiting for Jenkins to be ready..."
         kubectl wait --for=condition=available --timeout=300s deployment/jenkins -n {{ namespace }}
-        echo "✅ Jenkins is ready"
+        echo "OK! Jenkins is ready"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: jenkins_wait
 
     # Step 8.5: Verify Jenkins volume mounts
@@ -298,13 +298,13 @@
       debug:
         msg: |
           ========================================
-          🎉 DEVOPS PETS DEPLOYMENT COMPLETE!
+          OK! DEVOPS PETS DEPLOYMENT COMPLETE!
           ========================================
           
           Essential Services Deployed:
-          ✅ PostgreSQL Database (Internal)
-          ✅ MailHog Email Service  
-          ✅ Jenkins CI/CD Server
+          OK! PostgreSQL Database (Internal)
+          OK! MailHog Email Service  
+          OK! Jenkins CI/CD Server
           
           Services are ready for port forwarding.
           Port forwarding will be started by deploy.sh script.

@@ -24,5 +24,5 @@
 
 - name: Continue even if {{ tool.name }} installation failed
   debug:
-    msg: "⚠️  {{ tool.name }} installation failed, but continuing with other tools..."
+    msg: "WARNING: {{ tool.name }} installation failed, but continuing with other tools..."
   when: tool_verification.rc != 0 

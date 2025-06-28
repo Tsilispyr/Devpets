@@ -1,25 +1,39 @@
 ---
-- name: Check if Kind cluster exists
-  command: kind get clusters
-  register: kind_clusters
-  failed_when: false
-  changed_when: false
+- name: Create Kind cluster
+  hosts: localhost
+  gather_facts: no
+  become: no
+  vars:
+    cluster_name: "devops-pets"
+  
+  tasks:
+    - name: Check if Kind cluster exists
+      shell: kind get clusters | grep -q {{ cluster_name }} && echo "EXISTS" || echo "NOT_FOUND"
+      register: cluster_exists_check
+      failed_when: false
 
-- name: Create Kind cluster if it doesn't exist
-  command: kind create cluster --config "{{ playbook_dir }}/../kind-config.yaml" --name kind
-  args:
-    chdir: "{{ playbook_dir }}/.."
-  when: "'kind' not in kind_clusters.stdout"
-  register: cluster_creation
+    - name: Create new Kind cluster
+      shell: |
+        kind create cluster --name {{ cluster_name }} --config kind-config.yaml
+        echo "OK! Created new Kind cluster"
+      when: "'NOT_FOUND' in cluster_exists_check.stdout"
+      register: cluster_create
+
+    - name: Use existing Kind cluster
+      shell: |
+        echo "OK! Using existing Kind cluster"
+        kind export kubeconfig --name {{ cluster_name }}
+      when: "'EXISTS' in cluster_exists_check.stdout"
+      register: cluster_use
 
 - name: Display cluster status
   debug:
     msg: |
       Kind cluster status:
       {% if "'kind' not in kind_clusters.stdout" %}
-      ✅ Created new Kind cluster
+      Created new Kind cluster
       {% else %}
-      ✅ Using existing Kind cluster
+      Using existing Kind cluster
       {% endif %}
 
 - name: Export kubeconfig (always)
