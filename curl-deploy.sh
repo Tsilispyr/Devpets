@@ -126,6 +126,42 @@ cleanup() {
     rm -rf "$TEMP_DIR"
 }
 
+# Wait for port forwarding to be ready
+wait_for_port_forwarding() {
+    echo "Waiting for port forwarding to be ready..."
+    
+    # Wait for Jenkins port
+    local jenkins_ready=false
+    local mailhog_ready=false
+    local attempts=0
+    local max_attempts=30
+    
+    while [ $attempts -lt $max_attempts ]; do
+        if curl -s http://localhost:8082 > /dev/null 2>&1; then
+            jenkins_ready=true
+            echo "SUCCESS: Jenkins port forwarding is ready"
+        fi
+        
+        if curl -s http://localhost:8025 > /dev/null 2>&1; then
+            mailhog_ready=true
+            echo "SUCCESS: MailHog port forwarding is ready"
+        fi
+        
+        if [ "$jenkins_ready" = true ] && [ "$mailhog_ready" = true ]; then
+            echo "SUCCESS: All port forwarding is ready!"
+            break
+        fi
+        
+        echo "Waiting for port forwarding... (attempt $((attempts + 1))/$max_attempts)"
+        sleep 2
+        attempts=$((attempts + 1))
+    done
+    
+    if [ $attempts -eq $max_attempts ]; then
+        echo "WARNING: Port forwarding may not be fully ready, but deployment completed"
+    fi
+}
+
 # Main execution
 main() {
     # Set up cleanup on exit
@@ -143,6 +179,9 @@ main() {
     # Deploy applications
     deploy_applications
     
+    # Wait for port forwarding to be ready
+    wait_for_port_forwarding
+    
     # Show status
     show_status
     
@@ -155,6 +194,18 @@ main() {
     echo "- PostgreSQL: localhost:5432"
     echo ""
     echo "To stop port forwarding: pkill -f 'kubectl port-forward'"
+    echo ""
+    echo "Press Ctrl+C to exit (port forwarding will continue running)"
+    
+    # Keep the script running to maintain port forwarding
+    while true; do
+        sleep 10
+        # Check if port forwarding is still running
+        if ! pgrep -f "kubectl port-forward" > /dev/null; then
+            echo "WARNING: Port forwarding has stopped"
+            break
+        fi
+    done
 }
 
 # Run main function
