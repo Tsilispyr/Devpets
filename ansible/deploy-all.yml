@@ -298,25 +298,43 @@
         # Kill any existing port forwarding
         pkill -f "kubectl port-forward" 2>/dev/null || true
         
-        # Start port forwarding in background
-        kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080 &
+        # Start port forwarding in background and save PIDs
+        kubectl port-forward -n {{ namespace }} service/jenkins 8082:8080 > /dev/null 2>&1 &
         JENKINS_PF_PID=$!
         
-        kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025 &
+        kubectl port-forward -n {{ namespace }} service/mailhog 8025:8025 > /dev/null 2>&1 &
         MAILHOG_PF_PID=$!
         
+        # Save PIDs to files for later use
+        echo $JENKINS_PF_PID > /tmp/jenkins_pf.pid
+        echo $MAILHOG_PF_PID > /tmp/mailhog_pf.pid
+        
         # Wait a moment for port forwarding to establish
-        sleep 5
+        sleep 3
+        
+        # Check if port forwarding is working
+        if curl -s http://localhost:8082 > /dev/null 2>&1; then
+            echo "SUCCESS: Jenkins port forwarding is working"
+        else
+            echo "INFO: Jenkins port forwarding may take a moment to establish"
+        fi
+        
+        if curl -s http://localhost:8025 > /dev/null 2>&1; then
+            echo "SUCCESS: MailHog port forwarding is working"
+        else
+            echo "INFO: MailHog port forwarding may take a moment to establish"
+        fi
         
         echo "OK! Port forwarding started!"
         echo "Jenkins: http://localhost:8082"
         echo "MailHog: http://localhost:8025"
         echo ""
         echo "To stop port forwarding, run:"
-        echo "kill $JENKINS_PF_PID $MAILHOG_PF_PID"
+        echo "kill \$(cat /tmp/jenkins_pf.pid) \$(cat /tmp/mailhog_pf.pid)"
       args:
         chdir: "{{ project_root }}"
       register: port_forwarding
+      ignore_errors: true
 
     # FINAL SUCCESS MESSAGE
     - name: Display final success message
