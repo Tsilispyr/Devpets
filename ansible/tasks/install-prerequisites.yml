@@ -1,0 +1,47 @@
+---
+- name: Check and install prerequisites
+  block:
+    - name: Include Docker installation
+      include_tasks: install-docker.yml
+      when: missing_tools is defined and 'Docker' in missing_tools
+
+    - name: Include Kind installation
+      include_tasks: install-kind.yml
+      when: missing_tools is defined and 'Kind' in missing_tools
+
+    - name: Include Kubectl installation
+      include_tasks: install-kubectl.yml
+      when: missing_tools is defined and 'Kubectl' in missing_tools
+
+    - name: Include Git installation
+      include_tasks: install-git.yml
+      when: missing_tools is defined and 'Git' in missing_tools
+
+    - name: Include Java installation
+      include_tasks: install-java.yml
+      when: missing_tools is defined and 'Java' in missing_tools
+
+    - name: Include Python3 installation
+      include_tasks: install-python.yml
+      when: missing_tools is defined and 'Python 3' in missing_tools
+
+    - name: Include pip installation
+      include_tasks: pip-install.yml
+      when: missing_tools is defined and 'pip' in missing_tools
+
+    - name: Include Maven installation
+      include_tasks: install-maven.yml
+      when: missing_tools is defined and 'Maven' in missing_tools
+
+    - name: Include Node.js installation
+      include_tasks: install-nodejs.yml
+      when: missing_tools is defined and 'Node.js' in missing_tools
+
+    - name: Include npm installation
+      include_tasks: npm-install.yml
+      when: missing_tools is defined and 'npm' in missing_tools
+
+    - name: Include Docker Compose installation
+      include_tasks: install-docker-compose.yml
+      when: missing_tools is defined and 'Docker Compose' in missing_tools
+  become: yes 

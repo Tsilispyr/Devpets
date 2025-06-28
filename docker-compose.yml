@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: petdb
+      POSTGRES_USER: petuser
+      POSTGRES_PASSWORD: petpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.4
+    container_name: keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/petdb
+      KC_DB_USERNAME: petuser
+      KC_DB_PASSWORD: petpass
+      KC_HOSTNAME: localhost
+      KEYCLOAK_IMPORT: /opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8081:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+
+  # backend:
+  #   build:
+  #     context: ./Exercise_Ask_Kat/Ask
+  #     dockerfile: Dockerfile
+  #   container_name: backend
+  #   depends_on:
+  #     - keycloak
+  #     - postgres
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/petdb
+  #     SPRING_DATASOURCE_USERNAME: petuser
+  #     SPRING_DATASOURCE_PASSWORD: petpass
+  #     SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+   
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    user: root
+    ports:
+      - "8082:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+
+
+volumes:
+  db-data:  {}
+  jenkins_home:  {}
+  keycloak_data:  {}
+       

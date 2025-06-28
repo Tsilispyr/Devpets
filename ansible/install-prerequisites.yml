@@ -1,0 +1,51 @@
+---
+# Task file for installing missing tools
+# This file is included by deploy-all.yml
+
+- name: Install Docker if missing
+  include_tasks: tasks/install-docker.yml
+  when: "'Docker' in missing_tools"
+
+- name: Install Kind if missing
+  include_tasks: tasks/install-kind.yml
+  when: "'Kind' in missing_tools"
+
+- name: Install Kubectl if missing
+  include_tasks: tasks/install-kubectl.yml
+  when: "'Kubectl' in missing_tools"
+
+- name: Install Java if missing
+  include_tasks: tasks/install-java.yml
+  when: "'Java' in missing_tools"
+
+- name: Install Node.js if missing
+  include_tasks: tasks/install-nodejs.yml
+  when: "'Node.js' in missing_tools or 'npm' in missing_tools"
+
+- name: Install Git if missing
+  include_tasks: tasks/install-git.yml
+  when: "'Git' in missing_tools"
+
+- name: Install Python if missing
+  include_tasks: tasks/install-python.yml
+  when: "'Python 3' in missing_tools or 'pip' in missing_tools"
+
+- name: Install Maven if missing
+  include_tasks: tasks/install-maven.yml
+  when: "'Maven' in missing_tools"
+
+- name: Install Docker Compose if missing
+  include_tasks: tasks/install-docker-compose.yml
+  when: "'Docker Compose' in missing_tools"
+
+- name: Display installation summary
+  debug:
+    msg: |
+      ========================================
+      TOOL INSTALLATION COMPLETED
+      ========================================
+      Attempted to install: {{ missing_tools | join(', ') }}
+      
+      Please note: Some tools may require a system restart
+      or PATH refresh to be available in new terminals.
+      ======================================== 

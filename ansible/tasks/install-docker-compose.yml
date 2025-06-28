@@ -1,0 +1,26 @@
+---
+- name: Download Docker Compose to temporary location
+  get_url:
+    url: https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+    dest: /tmp/docker-compose
+    mode: '0755'
+  become: yes
+  ignore_errors: yes
+
+- name: Move Docker Compose to /usr/local/bin
+  copy:
+    src: /tmp/docker-compose
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+    owner: root
+    group: root
+    remote_src: yes
+  become: yes
+  ignore_errors: yes
+
+- name: Clean up temporary file
+  file:
+    path: /tmp/docker-compose
+    state: absent
+  become: yes
+  ignore_errors: yes 

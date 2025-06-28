@@ -1,0 +1,25 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.0
+Build-Jdk-Spec: 17
+Specification-Title: Dev Tools Symbols API Plugin
+Specification-Version: 0.0
+Implementation-Title: Dev Tools Symbols API Plugin
+Implementation-Version: 336.v0936cdf3d080
+Group-Id: io.jenkins.plugins
+Artifact-Id: oss-symbols-api
+Short-Name: oss-symbols-api
+Long-Name: Dev Tools Symbols API Plugin
+Url: https://github.com/jenkinsci/oss-symbols-api-plugin
+Plugin-Version: 336.v0936cdf3d080
+Hudson-Version: 2.479.3
+Jenkins-Version: 2.479.3
+Plugin-Developers: 
+Support-Dynamic-Loading: true
+Plugin-License-Name: MIT License
+Plugin-License-Url: https://opensource.org/license/mit/
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/oss-symbols-a
+ pi-plugin
+Plugin-ScmTag: 0936cdf3d080ed5123545086ba8ca96eba52537f
+Plugin-ScmUrl: https://github.com/jenkinsci/oss-symbols-api-plugin
+Implementation-Build: 0936cdf3d080ed5123545086ba8ca96eba52537f
+

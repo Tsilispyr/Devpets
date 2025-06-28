@@ -1,0 +1,14 @@
+---
+- name: Install OpenJDK 17
+  apt:
+    name: openjdk-17-jdk
+    state: present
+    update_cache: yes
+  ignore_errors: yes
+
+- name: Set JAVA_HOME
+  lineinfile:
+    path: /etc/environment
+    line: 'JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64'
+    state: present
+  ignore_errors: yes 

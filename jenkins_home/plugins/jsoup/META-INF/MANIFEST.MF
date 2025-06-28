@@ -1,0 +1,24 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.0
+Build-Jdk-Spec: 17
+Specification-Title: jsoup API Plugin
+Specification-Version: 1.21
+Implementation-Title: jsoup API Plugin
+Implementation-Version: 1.21.1-52.v96e4041b_60fd
+Group-Id: org.jenkins-ci.plugins
+Artifact-Id: jsoup
+Short-Name: jsoup
+Long-Name: jsoup API Plugin
+Url: https://github.com/jenkinsci/jsoup-plugin
+Plugin-Version: 1.21.1-52.v96e4041b_60fd
+Hudson-Version: 2.479.3
+Jenkins-Version: 2.479.3
+Plugin-Developers: 
+Support-Dynamic-Loading: true
+Plugin-License-Name: The MIT license
+Plugin-License-Url: http://www.opensource.org/licenses/mit-license.php
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/jsoup-plugin
+Plugin-ScmTag: 96e4041b60fd6fdebaac4cf68b45740068122d0a
+Plugin-ScmUrl: http://github.com/jenkinsci/jsoup-plugin
+Implementation-Build: 96e4041b60fd6fdebaac4cf68b45740068122d0a
+

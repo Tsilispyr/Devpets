@@ -1,0 +1,39 @@
+---
+- name: Check if Kind cluster exists
+  command: kind get clusters
+  register: kind_clusters
+  failed_when: false
+  changed_when: false
+
+- name: Create Kind cluster if it doesn't exist
+  command: kind create cluster --config "{{ playbook_dir }}/../kind-config.yaml" --name kind
+  args:
+    chdir: "{{ playbook_dir }}/.."
+  when: "'kind' not in kind_clusters.stdout"
+  register: cluster_creation
+
+- name: Display cluster status
+  debug:
+    msg: |
+      Kind cluster status:
+      {% if "'kind' not in kind_clusters.stdout" %}
+      ✅ Created new Kind cluster
+      {% else %}
+      ✅ Using existing Kind cluster
+      {% endif %}
+
+- name: Export kubeconfig (always)
+  command: kind export kubeconfig --name kind
+  register: kubeconfig_export
+
+- name: Verify cluster is ready
+  command: kubectl cluster-info
+  register: cluster_info
+
+- name: Display cluster info
+  debug:
+    msg: |
+      Cluster Information:
+      - name: kind
+      - API Server: {{ cluster_info.stdout }}
+      - Kubeconfig: Exported to current directory 

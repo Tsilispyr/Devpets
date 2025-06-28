@@ -1,0 +1,101 @@
+---
+- name: Check Prerequisites Only
+  hosts: all
+  gather_facts: yes
+  become: no
+  
+  vars:
+    missing_tools: []
+    required_tools:
+      - name: "Docker"
+        command: "docker --version"
+        description: "Docker container runtime"
+      - name: "Kind"
+        command: "kind version"
+        description: "Kubernetes in Docker"
+      - name: "Kubectl"
+        command: "kubectl version --client"
+        description: "Kubernetes command line tool"
+      - name: "Java"
+        command: "java -version"
+        description: "Java Runtime Environment"
+      - name: "Node.js"
+        command: "node --version"
+        description: "Node.js runtime"
+      - name: "npm"
+        command: "npm --version"
+        description: "Node Package Manager"
+      - name: "Git"
+        command: "git --version"
+        description: "Git version control"
+      - name: "Python 3"
+        command: "python3 --version"
+        description: "Python 3 interpreter"
+      - name: "pip"
+        command: "pip3 --version"
+        description: "Python package manager"
+      - name: "Maven"
+        command: "mvn --version"
+        description: "Maven build tool"
+      - name: "Docker Compose"
+        command: "docker-compose --version"
+        description: "Docker Compose"
+
+  tasks:
+    - name: Check if tools are available
+      command: "{{ item.command }}"
+      register: tool_check
+      failed_when: false
+      changed_when: false
+      loop: "{{ required_tools }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item.name }}"
+
+    - name: Display tool check results
+      debug:
+        msg: 
+          - "Tool: {{ item.item.name }}"
+          - "Status: {{ '✓ AVAILABLE' if item.rc == 0 else '✗ MISSING' }}"
+          - "Description: {{ item.item.description }}"
+          - "Output: {{ item.stdout if item.rc == 0 else 'Command not found' }}"
+          - "---"
+      loop: "{{ tool_check.results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Collect missing tools
+      set_fact:
+        missing_tools: "{{ missing_tools + [item.item.name] }}"
+      when: item.rc != 0
+      loop: "{{ tool_check.results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Display summary
+      debug:
+        msg: |
+          ========================================
+          PREREQUISITES CHECK SUMMARY
+          ========================================
+          Total tools checked: {{ required_tools | length }}
+          Available tools: {{ (required_tools | length) - (missing_tools | length) }}
+          Missing tools: {{ missing_tools | length }}
+          
+          {% if missing_tools | length > 0 %}
+          MISSING TOOLS:
+          {% for tool in missing_tools %}
+          - {{ tool }}
+          {% endfor %}
+          
+          Please install the missing tools before proceeding.
+          {% else %}
+          ✓ ALL REQUIRED TOOLS ARE AVAILABLE!
+          You can proceed with the deployment.
+          {% endif %}
+          ========================================
+
+    - name: Fail if tools are missing
+      fail:
+        msg: "Missing required tools: {{ missing_tools | join(', ') }}. Please install them before proceeding."
+      when: missing_tools | length > 0 

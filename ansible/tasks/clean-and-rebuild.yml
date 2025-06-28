@@ -1,0 +1,60 @@
+---
+- name: Stop and remove project containers only
+  shell: |
+    # Stop only containers related to our project
+    docker stop $(docker ps -q --filter "name=devops-pets") 2>/dev/null || true
+    docker stop $(docker ps -q --filter "name=jenkins") 2>/dev/null || true
+    docker stop $(docker ps -q --filter "name=postgres") 2>/dev/null || true
+    docker stop $(docker ps -q --filter "name=mailhog") 2>/dev/null || true
+    
+    # Remove only project containers
+    docker rm $(docker ps -aq --filter "name=devops-pets") 2>/dev/null || true
+    docker rm $(docker ps -aq --filter "name=jenkins") 2>/dev/null || true
+    docker rm $(docker ps -aq --filter "name=postgres") 2>/dev/null || true
+    docker rm $(docker ps -aq --filter "name=mailhog") 2>/dev/null || true
+  register: container_cleanup
+  failed_when: false
+
+- name: Remove only project images
+  shell: |
+    # Remove only our project images
+    docker rmi devops-pets-backend:latest 2>/dev/null || true
+    docker rmi devops-pets-frontend:latest 2>/dev/null || true
+    docker rmi custom-jenkins:latest 2>/dev/null || true
+    
+    # Remove dangling images (unused layers)
+    docker image prune -f
+  register: image_cleanup
+  failed_when: false
+
+- name: Check if namespace exists before cleanup
+  shell: kubectl get namespace devops-pets --no-headers --output=name 2>/dev/null || echo ""
+  register: namespace_check
+  failed_when: false
+  changed_when: false
+
+- name: Clean Kind cluster resources (keep cluster)
+  shell: |
+    # Only delete namespace if it exists
+    if kubectl get namespace devops-pets --no-headers --output=name >/dev/null 2>&1; then
+      echo "Namespace devops-pets exists, deleting..."
+      kubectl delete namespace devops-pets --ignore-not-found=true
+      echo "Waiting for namespace deletion to complete..."
+      sleep 10
+    else
+      echo "Namespace devops-pets does not exist, skipping deletion"
+    fi
+  register: namespace_cleanup
+  failed_when: false
+
+- name: Display cleanup results
+  debug:
+    msg: |
+      Project cleanup completed:
+      - Project containers stopped/removed
+      - Project images removed
+      - Project namespace cleaned ({{ 'deleted' if namespace_check.stdout else 'did not exist' }})
+      - Dangling images pruned
+      
+      System tools and Kind cluster preserved!
+      Ready for fresh project build! 

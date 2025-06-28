@@ -1,0 +1,28 @@
+---
+- name: Install {{ tool.name }}
+  debug:
+    msg: "Installing {{ tool.name }} ({{ tool.description }})..."
+
+- name: Execute installation tasks for {{ tool.name }}
+  include_tasks: "{{ tool.name | lower | replace(' ', '-') | replace('.', '') }}-install.yml"
+  when: tool.install_tasks is defined
+  ignore_errors: yes
+
+- name: Verify {{ tool.name }} installation
+  command: "{{ tool.command }}"
+  register: tool_verification
+  failed_when: false
+  changed_when: false
+  become: no
+
+- name: Display {{ tool.name }} installation result
+  debug:
+    msg: |
+      {{ tool.name }} Installation:
+      Status: {{ '✓ SUCCESS' if tool_verification.rc == 0 else '✗ FAILED' }}
+      Output: {{ tool_verification.stdout if tool_verification.rc == 0 else tool_verification.stderr }}
+
+- name: Continue even if {{ tool.name }} installation failed
+  debug:
+    msg: "⚠️  {{ tool.name }} installation failed, but continuing with other tools..."
+  when: tool_verification.rc != 0 

@@ -1,0 +1,32 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.0
+Build-Jdk-Spec: 17
+Specification-Title: Kubernetes Credentials Plugin
+Specification-Version: 0.0
+Implementation-Title: Kubernetes Credentials Plugin
+Implementation-Version: 195.v0c273a_cfb_4f4
+Group-Id: org.jenkinsci.plugins
+Artifact-Id: kubernetes-credentials
+Short-Name: kubernetes-credentials
+Long-Name: Kubernetes Credentials Plugin
+Url: https://github.com/jenkinsci/kubernetes-credentials-plugin
+Compatible-Since-Version: 190
+Plugin-Version: 195.v0c273a_cfb_4f4
+Hudson-Version: 2.479.3
+Jenkins-Version: 2.479.3
+Plugin-Dependencies: apache-httpcomponents-client-4-api:4.5.14-269.vfa_2
+ 321039a_83,authentication-tokens:1.131.v7199556c3004,credentials:1415.v
+ 831096eb_5534,docker-commons:457.v0f62a_94f11a_3;resolution:=optional,g
+ oogle-oauth-plugin:1.335.ve6de40e2db_18;resolution:=optional,jackson2-a
+ pi:2.19.0-404.vb_b_0fd2fea_e10,kubernetes-client-api:6.14.0-255.v44e4b_
+ 386fb_a_e,plain-credentials:195.vb_906e9073dee;resolution:=optional
+Plugin-Developers: Max Laverse:max_laverse:
+Plugin-License-Name: Apache License 2.0
+Plugin-License-Url: https://www.apache.org/licenses/LICENSE-2.0
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/kubernetes-cr
+ edentials-plugin.git
+Plugin-ScmTag: 0c273acfb4f474536b6ccf5a6ed99596fe4adb96
+Plugin-ScmUrl: https://github.com/jenkinsci/kubernetes-credentials-plugi
+ n
+Implementation-Build: 0c273acfb4f474536b6ccf5a6ed99596fe4adb96
+

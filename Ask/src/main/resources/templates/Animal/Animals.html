@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{page_layout/layout}"
+      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Animals</title>
+</head>
+<body>
+<div layout:fragment="main-content">
+    <div th:if="${ not#lists.isEmpty(Animals)}">
+        <table class="table">
+            <thead>
+            <th>Name</th>
+            <th>Gender</th>
+            <th>Age</th>
+            <th>Type</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="Animal : ${Animals}">
+                    <td th:text="${Animal.getName()}"></td>
+                    <td th:text="${Animal.getGender()}"></td>
+                    <td th:text="${Animal.getAge()}"></td>
+                    <td th:text="${Animal.getType()}"></td>
+
+                    <td>
+                <a class="btn btn-outline-primary btn-sm" th:href="@{'/Animal/' + ${Animal.getId()}}">Details</a>
+                    </td>
+
+                <td>
+                      <span th:if="${Animal.getReq() == 1}">
+
+                    <a sec:authorize="hasRole('ROLE_SHELTER') or hasRole('ROLE_ADMIN')"  class="btn btn-outline-success btn-sm" th:href="@{'/Animal/Delete/' + ${Animal.getId()}}">Approve</a>
+                    <a sec:authorize="hasRole('ROLE_SHELTER') or hasRole('ROLE_ADMIN')"  class="btn btn-outline-danger btn-sm" th:href="@{'/Animal/Deny/' + ${Animal.getId()}}">Deny</a>
+
+                    </span>
+                </td>
+
+                    <td>
+                        <span th:if="${Animal.getReq() == 0}">
+                        <a class="btn btn-outline-success btn-sm" th:href="@{'/Animal/Request/' + ${Animal.getId()}}">Request</a>
+                        </span>
+                    </td>
+                    <td>
+                        <a sec:authorize="hasRole('ROLE_ADMIN')" class="btn btn-outline-danger btn-sm" th:href="@{'/Animal/Delete/' + ${Animal.getId()}}">Delete</a>
+                    </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <div th:if="${ #lists.isEmpty(Animals)}">
+        No Animals found!
+    </div>
+</div>
+</body>
+</html>

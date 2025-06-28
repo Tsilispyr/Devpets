@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{page_layout/layout}">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Animal</title>
+</head>
+<body>
+<div layout:fragment="main-content">
+    <form action="#" th:action="@{/Request/new}" th:object="${request}"
+          method="post">
+
+        <div class="form-group">
+            <label for="age">Age</label>
+            <input type="text" id="age" class="form-control" th:field="*{age}">
+        </div>
+
+        <div class="form-group">
+            <label for="Gender">Gender</label>
+            <select name="Gender">
+                <option th:each="GenderOpt : ${T(com.example.Ask.Entities.Gender).values()}"
+                        th:value="${GenderOpt}" th:text="${GenderOpt}"></option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="Type">Type</label>
+            <input type="text" id="Type" class="form-control" th:field="*{type}">
+        </div>
+        <div class="form-group">
+            <label for="Name">Name</label>
+            <input type="text" id="Name" class="form-control" th:field="*{name}">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+</div>
+</body>
+</html>

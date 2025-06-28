@@ -1,0 +1,7 @@
+---
+- name: Install Maven
+  apt:
+    name: maven
+    state: present
+    update_cache: yes
+  ignore_errors: yes 

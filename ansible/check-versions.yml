@@ -1,0 +1,105 @@
+---
+- name: Check Tool Version Compatibility
+  hosts: all
+  gather_facts: no
+  become: no
+  
+  vars:
+    version_requirements:
+      - name: "Docker"
+        command: "docker --version"
+        min_version: "20.0"
+        extract_pattern: "Docker version (\\d+\\.\\d+)"
+      - name: "Kind"
+        command: "kind version"
+        min_version: "0.20"
+        extract_pattern: "kind v(\\d+\\.\\d+)"
+      - name: "Kubectl"
+        command: "kubectl version --client --short"
+        min_version: "1.25"
+        extract_pattern: "Client Version: v(\\d+\\.\\d+)"
+      - name: "Java"
+        command: "java -version"
+        min_version: "17"
+        extract_pattern: 'version "([^"]+)"'
+      - name: "Node.js"
+        command: "node --version"
+        min_version: "18"
+        extract_pattern: "v(\\d+)"
+      - name: "npm"
+        command: "npm --version"
+        min_version: "9"
+        extract_pattern: "(\\d+)"
+      - name: "Git"
+        command: "git --version"
+        min_version: "2.0"
+        extract_pattern: "git version (\\d+\\.\\d+)"
+      - name: "Python 3"
+        command: "python3 --version"
+        min_version: "3.8"
+        extract_pattern: "Python (\\d+\\.\\d+)"
+      - name: "pip"
+        command: "pip3 --version"
+        min_version: "20.0"
+        extract_pattern: "pip (\\d+)"
+      - name: "Maven"
+        command: "mvn --version"
+        min_version: "3.8"
+        extract_pattern: "Apache Maven (\\d+\\.\\d+)"
+      - name: "Docker Compose"
+        command: "docker-compose --version"
+        min_version: "2.0"
+        extract_pattern: "Docker Compose version v(\\d+\\.\\d+)"
+
+  tasks:
+    - name: Check tool versions
+      shell: "{{ item.command }}"
+      register: version_check
+      failed_when: false
+      changed_when: false
+      loop: "{{ version_requirements }}"
+      loop_control:
+        loop_var: tool
+
+    - name: Extract and compare versions
+      set_fact:
+        version_results: "{{ version_results | default([]) + [{'name': item.tool.name, 'command': item.tool.command, 'output': item.stdout, 'stderr': item.stderr, 'rc': item.rc, 'min_version': item.tool.min_version, 'extract_pattern': item.tool.extract_pattern}] }}"
+      loop: "{{ version_check.results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Analyze version compatibility
+      set_fact:
+        compatibility_report: "{{ compatibility_report | default([]) + [{'name': item.name, 'status': 'MISSING' if item.rc != 0 else 'CHECKING', 'current_version': 'N/A' if item.rc != 0 else 'EXTRACTING', 'min_version': item.min_version, 'compatible': false}] }}"
+      loop: "{{ version_results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Display version compatibility report
+      debug:
+        msg: |
+          ========================================
+          VERSION COMPATIBILITY REPORT
+          ========================================
+          {% for tool in compatibility_report %}
+          Tool: {{ tool.name }}
+          Status: {{ tool.status }}
+          Current Version: {{ tool.current_version }}
+          Minimum Required: {{ tool.min_version }}
+          Compatible: {{ '✓ YES' if tool.compatible else '✗ NO' }}
+          ---
+          {% endfor %}
+          ========================================
+
+    - name: Display detailed version information
+      debug:
+        msg: |
+          DETAILED VERSION INFORMATION:
+          {% for result in version_results %}
+          {{ result.name }}:
+            Command: {{ result.command }}
+            Output: {{ result.output }}
+            Error: {{ result.stderr if result.stderr else 'None' }}
+            Return Code: {{ result.rc }}
+            ---
+          {% endfor %} 

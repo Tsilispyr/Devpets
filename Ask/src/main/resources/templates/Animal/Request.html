@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity6"
+      layout:decorate="~{page_layout/layout}">
+<head>
+    <meta charset="UTF-8">
+    <title>Requests</title>
+</head>
+<body>
+<div layout:fragment="main-content">
+
+    <div th:if="${ not#lists.isEmpty(Requests)}">
+        <table class="table">
+            <thead>
+            <th>Name</th>
+            <th>Gender</th>
+            <th>Age</th>
+            <th>Type</th>
+
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="Request : ${Requests}">
+                <td th:text="${Request.getName()}"></td>
+                <td th:text="${Request.getGender()}"></td>
+                <td th:text="${Request.getAge()}"></td>
+                <td th:text="${Request.getType()}"></td>
+                <td>
+                    <a class="btn btn-outline-primary btn-sm" th:href="@{'/Request/' + ${Request.getId()}}">Details</a>
+                </td>
+                <td>
+                    <a sec:authorize="hasRole('ROLE_ADMIN')" class="btn btn-outline-success btn-sm" th:href="@{'/Request/Approve/' + ${Request.getId()}}">Admin Approve</a>
+                </td>
+                <td>
+                    <a sec:authorize="hasRole('ROLE_DOCTOR') or hasRole('ROLE_ADMIN')" class="btn btn-outline-success btn-sm" th:href="@{'/Request/ApproveD/' + ${Request.getId()}}">Doctor Approve</a>
+                </td>
+                <td>
+                    <a  class="btn btn-outline-danger btn-sm" th:href="@{'/Request/Delete/' + ${Request.getId()}}">Delete</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div th:if="${ #lists.isEmpty(Requests)}">
+        No Request found!
+    </div>
+    <a href="/Request/new" class="btn btn-primary" role="button">Add New Pet</a>
+</div>
+</body>
+</html>

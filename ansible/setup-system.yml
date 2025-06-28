@@ -1,0 +1,150 @@
+---
+- name: Setup System with All Prerequisites
+  hosts: all
+  gather_facts: yes
+  become: yes
+  
+  vars:
+    missing_tools: []
+    required_tools:
+      - name: "Docker"
+        command: "docker --version"
+        description: "Docker container runtime"
+      - name: "Kind"
+        command: "kind version"
+        description: "Kubernetes in Docker"
+      - name: "Kubectl"
+        command: "kubectl version --client"
+        description: "Kubernetes command line tool"
+      - name: "Java"
+        command: "java -version"
+        description: "Java Runtime Environment"
+      - name: "Node.js"
+        command: "node --version"
+        description: "Node.js runtime"
+      - name: "npm"
+        command: "npm --version"
+        description: "Node Package Manager"
+      - name: "Git"
+        command: "git --version"
+        description: "Git version control"
+      - name: "Python 3"
+        command: "python3 --version"
+        description: "Python 3 interpreter"
+      - name: "pip"
+        command: "pip3 --version"
+        description: "Python package manager"
+      - name: "Maven"
+        command: "mvn --version"
+        description: "Maven build tool"
+      - name: "Docker Compose"
+        command: "docker-compose --version"
+        description: "Docker Compose"
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Check if tools are available
+      command: "{{ item.command }}"
+      register: tool_check
+      failed_when: false
+      changed_when: false
+      become: no
+      loop: "{{ required_tools }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item.name }}"
+
+    - name: Display initial check results
+      debug:
+        msg: 
+          - "Tool: {{ item.item.name }}"
+          - "Status: {{ '✓ AVAILABLE' if item.rc == 0 else '✗ MISSING' }}"
+          - "Description: {{ item.item.description }}"
+          - "Output: {{ item.stdout if item.rc == 0 else 'Command not found' }}"
+          - "---"
+      loop: "{{ tool_check.results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Collect missing tools
+      set_fact:
+        missing_tools: "{{ missing_tools + [item.item] }}"
+      when: item.rc != 0
+      loop: "{{ tool_check.results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Display installation summary
+      debug:
+        msg: |
+          ========================================
+          SYSTEM SETUP SUMMARY
+          ========================================
+          Total tools checked: {{ required_tools | length }}
+          Available tools: {{ (required_tools | length) - (missing_tools | length) }}
+          Tools to install: {{ missing_tools | length }}
+          
+          {% if missing_tools | length > 0 %}
+          TOOLS TO INSTALL:
+          {% for tool in missing_tools %}
+          - {{ tool.name }} ({{ tool.description }})
+          {% endfor %}
+          
+          Starting installation...
+          {% else %}
+          ✓ ALL REQUIRED TOOLS ARE AVAILABLE!
+          No installation needed.
+          {% endif %}
+          ========================================
+
+    - name: Install missing tools
+      include_tasks: tasks/install-tool.yml
+      loop: "{{ missing_tools }}"
+      loop_control:
+        loop_var: tool
+      when: missing_tools | length > 0
+
+    - name: Verify all installations
+      command: "{{ item.command }}"
+      register: verification_check
+      failed_when: false
+      changed_when: false
+      become: no
+      loop: "{{ required_tools }}"
+      loop_control:
+        loop_var: item
+        label: "{{ item.name }}"
+
+    - name: Display final verification results
+      debug:
+        msg: 
+          - "Tool: {{ item.item.name }}"
+          - "Status: {{ '✓ AVAILABLE' if item.rc == 0 else '✗ STILL MISSING' }}"
+          - "Output: {{ item.stdout if item.rc == 0 else 'Installation failed' }}"
+          - "---"
+      loop: "{{ verification_check.results }}"
+      loop_control:
+        loop_var: item
+
+    - name: Final setup summary
+      debug:
+        msg: |
+          ========================================
+          SYSTEM SETUP COMPLETED
+          ========================================
+          All required tools have been installed and verified.
+          
+          Installed tools:
+          {% for result in verification_check.results %}
+          {% if result.rc == 0 %}
+          ✓ {{ result.item.name }}: {{ result.stdout.split('\n')[0] if result.stdout else 'Installed' }}
+          {% endif %}
+          {% endfor %}
+          
+          You can now proceed with the deployment using:
+          ansible-playbook -i inventory.ini deploy-all.yml
+          ======================================== 

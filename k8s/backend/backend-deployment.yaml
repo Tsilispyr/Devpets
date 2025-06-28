@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: devops-pets-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres.devops-pets.svc.cluster.local:5432/petdb
+            - name: SPRING_DATASOURCE_USERNAME
+              value: petuser
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: petpass
+            - name: SPRING_MAIL_HOST
+              value: mailhog.devops-pets.svc.cluster.local
+            - name: SPRING_MAIL_PORT
+              value: "1025"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: update
+            - name: SPRING_JPA_SHOW_SQL
+              value: "true"
+            - name: SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT
+              value: "30000"
+            - name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+              value: "10"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3

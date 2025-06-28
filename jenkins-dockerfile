@@ -1,0 +1,151 @@
+FROM jenkins/jenkins:lts
+
+USER root
+
+# ========================================
+# PHASE 1: SYSTEM PREREQUISITES
+# ========================================
+RUN echo "=== Installing System Prerequisites ===" && \
+    apt-get update && \
+    apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg2 \
+        lsb-release \
+        software-properties-common \
+        wget \
+        unzip \
+        python3 \
+        python3-pip \
+        sudo \
+        && rm -rf /var/lib/apt/lists/*
+
+# ========================================
+# PHASE 2: DOCKER INSTALLATION
+# ========================================
+RUN echo "=== Installing Docker ===" && \
+    # Add Docker GPG key
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    # Add Docker repository for Debian
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    # Install Docker
+    apt-get update && \
+    apt-get install -y docker-ce docker-ce-cli containerd.io && \
+    # Create docker group if it doesn't exist, or use existing one
+    groupadd -g 989 docker 2>/dev/null || true && \
+    usermod -aG docker jenkins && \
+    # Create Docker socket directory and set permissions
+    mkdir -p /var/run && \
+    touch /var/run/docker.sock && \
+    chmod 666 /var/run/docker.sock && \
+    chown root:docker /var/run/docker.sock && \
+    rm -rf /var/lib/apt/lists/*
+
+# ========================================
+# PHASE 3: JAVA & MAVEN 3.9.5
+# ========================================
+RUN echo "=== Installing Java and Maven 3.9.5 ===" && \
+    apt-get update && \
+    apt-get install -y openjdk-17-jdk && \
+    # Download and install Maven 3.9.5
+    wget https://archive.apache.org/dist/maven/maven-3/3.9.5/binaries/apache-maven-3.9.5-bin.tar.gz && \
+    tar -xzf apache-maven-3.9.5-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.9.5 /opt/maven && \
+    # Set environment variables
+    echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> /etc/environment && \
+    echo 'export M2_HOME=/opt/maven' >> /etc/environment && \
+    echo 'export PATH=$PATH:$M2_HOME/bin' >> /etc/environment && \
+    # Create symlinks
+    ln -sf /opt/maven/bin/mvn /usr/local/bin/mvn && \
+    rm apache-maven-3.9.5-bin.tar.gz && \
+    rm -rf /var/lib/apt/lists/*
+
+# ========================================
+# PHASE 4: NODE.JS 18 & NPM
+# ========================================
+RUN echo "=== Installing Node.js 18 and npm ===" && \
+    # Add NodeSource repository
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    # Verify installation
+    node --version && npm --version && \
+    rm -rf /var/lib/apt/lists/*
+
+# ========================================
+# PHASE 5: KUBECTL (SPECIFIC VERSION)
+# ========================================
+RUN echo "=== Installing kubectl v1.28.0 ===" && \
+    curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/ && \
+    # Verify installation
+    kubectl version --client
+
+# ========================================
+# PHASE 6: KIND (SPECIFIC VERSION)
+# ========================================
+RUN echo "=== Installing kind v0.20.0 ===" && \
+    curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64 && \
+    chmod +x /usr/local/bin/kind && \
+    # Verify installation
+    kind version
+
+# ========================================
+# PHASE 7: ANSIBLE
+# ========================================
+RUN echo "=== Installing Ansible ===" && \
+    apt-get update && \
+    apt-get install -y ansible && \
+    # Install Ansible collections
+    ansible-galaxy collection install community.docker && \
+    ansible-galaxy collection install kubernetes.core && \
+    rm -rf /var/lib/apt/lists/*
+
+# ========================================
+# PHASE 8: DOCKER COMPOSE
+# ========================================
+RUN echo "=== Installing Docker Compose v2.20.0 ===" && \
+    curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && \
+    chmod +x /usr/local/bin/docker-compose && \
+    # Verify installation
+    docker-compose --version
+
+# ========================================
+# PHASE 9: VERIFICATION & CLEANUP
+# ========================================
+RUN echo "=== Verifying all installations ===" && \
+    echo "Docker version:" && docker --version && \
+    echo "Java version:" && java -version && \
+    echo "Maven version:" && mvn --version && \
+    echo "Node.js version:" && node --version && \
+    echo "npm version:" && npm --version && \
+    echo "kubectl version:" && kubectl version --client && \
+    echo "kind version:" && kind version && \
+    echo "Ansible version:" && ansible --version && \
+    echo "Docker Compose version:" && docker-compose --version && \
+    echo "Git version:" && git --version && \
+    echo "=== All tools installed successfully! ==="
+
+# ========================================
+# PHASE 10: JENKINS SETUP
+# ========================================
+# Copy Jenkins configuration files
+COPY jenkins-setup/init.groovy /usr/share/jenkins/ref/init.groovy.d/
+COPY jenkins-setup/jobs/ /usr/share/jenkins/ref/jobs/
+
+# Create jenkins_data directory
+RUN mkdir -p /jenkins_data && chown -R jenkins:jenkins /jenkins_data
+
+# Ensure Docker socket exists and has proper permissions
+RUN mkdir -p /var/run && \
+    touch /var/run/docker.sock && \
+    chmod 666 /var/run/docker.sock && \
+    chown root:docker /var/run/docker.sock
+
+# Switch back to jenkins user
+USER jenkins
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1

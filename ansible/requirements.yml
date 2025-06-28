@@ -1,0 +1,4 @@
+---
+# No external collections required for basic kubectl commands 
+collections:
+  - name: community.docker 

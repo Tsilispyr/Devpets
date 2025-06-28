@@ -1,0 +1,409 @@
+---
+- name: DevOps Pets Complete Deployment
+  hosts: localhost
+  gather_facts: no
+  become: no
+  vars:
+    project_root: "{{ playbook_dir | realpath }}"
+    k8s_path: "{{ project_root }}/../k8s"
+    cluster_name: "devops-pets"
+    namespace: "devops-pets"
+  
+  tasks:
+    - name: Display deployment start
+      debug:
+        msg: |
+          🚀 DEVOPS PETS COMPLETE DEPLOYMENT
+          =================================
+          This will deploy PostgreSQL, MailHog, and Jenkins
+          with automatic port forwarding at the end.
+
+    # Step 1: Cleanup existing resources
+    - name: Cleanup existing resources
+      shell: |
+        echo "🧹 NUCLEAR CLEANUP - Force closing everything..."
+        
+        # Force kill ALL processes
+        echo "Force killing ALL processes..."
+        pkill -9 -f "kubectl" 2>/dev/null
+        pkill -9 -f "docker" 2>/dev/null
+        pkill -9 -f "jenkins" 2>/dev/null
+        pkill -9 -f "port-forward" 2>/dev/null
+        
+        # Force stop and remove ALL containers
+        echo "Force stopping ALL containers..."
+        docker ps -aq | xargs -r docker stop 2>/dev/null
+        docker ps -aq | xargs -r docker kill 2>/dev/null
+        docker ps -aq | xargs -r docker rm -f 2>/dev/null
+        
+        # Force remove ALL images
+        echo "Force removing ALL images..."
+        docker images -aq | xargs -r docker rmi -f 2>/dev/null
+        
+        # Force delete ALL namespaces (only if kubectl works)
+        echo "Force deleting ALL namespaces..."
+        if kubectl version --client 2>/dev/null; then
+          kubectl get namespaces -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | xargs -I {} kubectl delete namespace {} --force --grace-period=0 --timeout=5s 2>/dev/null
+        else
+          echo "kubectl not available, skipping namespace cleanup"
+        fi
+        
+        # Force delete ALL clusters (only if kind works)
+        echo "Force deleting ALL clusters..."
+        if kind version 2>/dev/null; then
+          kind get clusters | xargs -I {} kind delete cluster --name {} 2>/dev/null
+        else
+          echo "kind not available, skipping cluster cleanup"
+        fi
+        
+        # Docker cleanup (preserving volumes to keep jenkins_home)
+        echo "Docker cleanup (preserving volumes)..."
+        docker system prune -af 2>/dev/null
+        docker network prune -f 2>/dev/null
+        
+        # Wait for everything to settle
+        sleep 3
+        
+        echo "✅ NUCLEAR CLEANUP completed (jenkins_home preserved)"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: cleanup_result
+      failed_when: false
+
+    - name: Display cleanup result
+      debug:
+        msg: |
+          Nuclear cleanup completed with return code: {{ cleanup_result.rc }}
+          Output: {{ cleanup_result.stdout }}
+
+    # Step 1.3: Verify jenkins_home is preserved
+    - name: Check jenkins_home preservation
+      stat:
+        path: "{{ project_root }}/../jenkins_home"
+      register: jenkins_home_preserved
+
+    - name: Display jenkins_home preservation status
+      debug:
+        msg: |
+          jenkins_home preserved after cleanup: {{ jenkins_home_preserved.stat.exists }}
+          jenkins_home is directory: {{ jenkins_home_preserved.stat.isdir }}
+
+    # Step 1.5: Manual namespace cleanup if needed
+    - name: Check if namespace still exists
+      shell: kubectl get namespace {{ namespace }} 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+      register: namespace_exists_check
+      failed_when: false
+
+    - name: Force delete namespace if still exists
+      shell: |
+        echo "Namespace still exists, force deleting manually..."
+        kubectl delete namespace {{ namespace }} --force --grace-period=0 --timeout=10s
+        sleep 5
+        echo "Manual namespace deletion completed"
+      when: "'EXISTS' in namespace_exists_check.stdout"
+      register: manual_namespace_delete
+      failed_when: false
+
+    # Step 2: Create Kind cluster
+    - name: Create jenkins_home directory
+      file:
+        path: "{{ project_root }}/../jenkins_home"
+        state: directory
+        mode: '0755'
+
+    - name: Create Kind cluster
+      shell: |
+        echo "🏗️ Creating Kind cluster {{ cluster_name }}..."
+        kind create cluster --name {{ cluster_name }} --config - << 'EOF'
+        kind: Cluster
+        apiVersion: kind.x-k8s.io/v1alpha4
+        networking:
+          apiServerAddress: "127.0.0.1"
+          apiServerPort: 6444
+        nodes:
+        - role: control-plane
+          extraMounts:
+          - hostPath: ./jenkins_home
+            containerPath: /jenkins_home
+        EOF
+        echo "✅ Cluster created"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: cluster_create
+
+    - name: Copy jenkins_home to kind node
+      shell: |
+        echo "📁 Copying jenkins_home to kind node..."
+        kind cp jenkins_home/ {{ cluster_name }}-control-plane:/jenkins_home/
+        echo "✅ Files copied"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: jenkins_copy
+      when: jenkins_home_verify is defined
+
+    # Step 3: Export kubeconfig
+    - name: Export kubeconfig
+      shell: |
+        echo "📋 Exporting kubeconfig..."
+        kind export kubeconfig --name {{ cluster_name }}
+        kubectl cluster-info
+      args:
+        chdir: "{{ project_root }}/.."
+      register: kubeconfig_export
+
+    # Step 3.5: Verify jenkins_home mount
+    - name: Check jenkins_home directory
+      stat:
+        path: "{{ project_root }}/../jenkins_home"
+      register: jenkins_home_stat
+
+    - name: Display jenkins_home status
+      debug:
+        msg: |
+          jenkins_home exists: {{ jenkins_home_stat.stat.exists }}
+          jenkins_home is directory: {{ jenkins_home_stat.stat.isdir }}
+
+    - name: List jenkins_home contents
+      find:
+        paths: "{{ project_root }}/../jenkins_home"
+        file_type: any
+      register: jenkins_home_files
+
+    - name: Display jenkins_home files
+      debug:
+        msg: "Found {{ jenkins_home_files.files | length }} files in jenkins_home"
+
+    - name: Check kind node mount
+      shell: |
+        echo "Checking mount in kind node..."
+        kind exec --name {{ cluster_name }} -- ls -la /jenkins_home
+      args:
+        chdir: "{{ project_root }}/.."
+      register: kind_mount_check
+      failed_when: false
+
+    # Step 4: Create namespace
+    - name: Create namespace
+      shell: |
+        echo "📁 Creating namespace {{ namespace }}..."
+        kubectl create namespace {{ namespace }} 2>/dev/null || true
+        kubectl get namespace {{ namespace }}
+      args:
+        chdir: "{{ project_root }}/.."
+      register: namespace_create
+
+    # Step 5: Deploy PostgreSQL
+    - name: Deploy PostgreSQL
+      shell: |
+        echo "🐘 Deploying PostgreSQL..."
+        kubectl apply -f {{ k8s_path }}/postgres/postgres-secret.yaml -n {{ namespace }}
+        kubectl apply -f {{ k8s_path }}/postgres/postgres-pvc.yaml -n {{ namespace }}
+        kubectl apply -f {{ k8s_path }}/postgres/postgres-deployment.yaml -n {{ namespace }}
+        kubectl apply -f {{ k8s_path }}/postgres/postgres-service.yaml -n {{ namespace }}
+        echo "✅ PostgreSQL deployed"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: postgres_deploy
+
+    # Step 6: Deploy MailHog
+    - name: Deploy MailHog
+      shell: |
+        echo "📧 Deploying MailHog..."
+        kubectl apply -f {{ k8s_path }}/mailhog/mailhog-deployment.yaml -n {{ namespace }}
+        kubectl apply -f {{ k8s_path }}/mailhog/mailhog-service.yaml -n {{ namespace }}
+        echo "✅ MailHog deployed"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: mailhog_deploy
+
+    # Step 7: Deploy Jenkins
+    - name: Deploy Jenkins
+      shell: |
+        echo "🔧 Deploying Jenkins..."
+        kubectl apply -f {{ k8s_path }}/jenkins/jenkins-rbac.yaml
+        kubectl apply -f {{ k8s_path }}/jenkins/jenkins-pvc.yaml -n {{ namespace }}
+        kubectl apply -f {{ k8s_path }}/jenkins/jenkins-deployment.yaml -n {{ namespace }}
+        kubectl apply -f {{ k8s_path }}/jenkins/jenkins-service.yaml -n {{ namespace }}
+        echo "✅ Jenkins deployed"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: jenkins_deploy
+
+    # Step 8: Wait for services to be ready
+    - name: Wait for PostgreSQL
+      shell: |
+        echo "⏳ Waiting for PostgreSQL to be ready..."
+        kubectl wait --for=condition=available --timeout=300s deployment/postgres -n {{ namespace }}
+        echo "✅ PostgreSQL is ready"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: postgres_wait
+
+    - name: Wait for MailHog
+      shell: |
+        echo "⏳ Waiting for MailHog to be ready..."
+        kubectl wait --for=condition=available --timeout=300s deployment/mailhog -n {{ namespace }}
+        echo "✅ MailHog is ready"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: mailhog_wait
+
+    - name: Wait for Jenkins
+      shell: |
+        echo "⏳ Waiting for Jenkins to be ready..."
+        kubectl wait --for=condition=available --timeout=300s deployment/jenkins -n {{ namespace }}
+        echo "✅ Jenkins is ready"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: jenkins_wait
+
+    # Step 8.5: Verify Jenkins volume mounts
+    - name: Check if Jenkins pods exist
+      shell: kubectl get pods -n {{ namespace }} -l app=jenkins --no-headers | wc -l
+      register: jenkins_pod_count
+
+    - name: Display Jenkins pod count
+      debug:
+        msg: "Found {{ jenkins_pod_count.stdout }} Jenkins pods"
+
+    - name: Get Jenkins pod name
+      shell: kubectl get pods -n {{ namespace }} -l app=jenkins -o jsonpath='{.items[0].metadata.name}'
+      register: jenkins_pod_name
+      when: jenkins_pod_count.stdout | int > 0
+
+    - name: Display Jenkins pod name
+      debug:
+        msg: "Jenkins pod: {{ jenkins_pod_name.stdout }}"
+      when: jenkins_pod_count.stdout | int > 0
+
+    - name: Check Jenkins pod volumes
+      shell: kubectl describe pod {{ jenkins_pod_name.stdout }} -n {{ namespace }} | grep -A 10 "Volumes:"
+      register: jenkins_volumes
+      failed_when: false
+      when: jenkins_pod_count.stdout | int > 0
+
+    - name: Check jenkins_home in pod
+      shell: kubectl exec {{ jenkins_pod_name.stdout }} -n {{ namespace }} -- ls -la /var/jenkins_home
+      register: jenkins_home_check
+      failed_when: false
+      when: jenkins_pod_count.stdout | int > 0
+
+    - name: List jenkins_home files in pod
+      shell: kubectl exec {{ jenkins_pod_name.stdout }} -n {{ namespace }} -- find /var/jenkins_home -type f | head -10
+      register: jenkins_home_files
+      failed_when: false
+      when: jenkins_pod_count.stdout | int > 0
+
+    # Step 9: Start port forwarding
+    - name: Kill existing port forwards
+      shell: |
+        echo "🛑 Killing existing port forwards..."
+        pkill -f "kubectl port-forward" 2>/dev/null || true
+        sleep 3
+        echo "✅ Existing port forwards killed"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: kill_port_forwards
+      failed_when: false
+
+    - name: Start MailHog port forwarding
+      shell: |
+        echo "📧 Starting MailHog port forward..."
+        nohup kubectl port-forward svc/mailhog 8025:8025 -n {{ namespace }} > /dev/null 2>&1 &
+        echo $! > /tmp/mailhog_port_forward.pid
+        sleep 3
+        echo "✅ MailHog port forward started (PID: $(cat /tmp/mailhog_port_forward.pid))"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: mailhog_port_forward
+      failed_when: false
+
+    - name: Start Jenkins port forwarding
+      shell: |
+        echo "🔧 Starting Jenkins port forward..."
+        nohup kubectl port-forward svc/jenkins 8082:8080 -n {{ namespace }} > /dev/null 2>&1 &
+        echo $! > /tmp/jenkins_port_forward.pid
+        sleep 3
+        echo "✅ Jenkins port forward started (PID: $(cat /tmp/jenkins_port_forward.pid))"
+      args:
+        chdir: "{{ project_root }}/.."
+      register: jenkins_port_forward
+      failed_when: false
+
+    - name: Verify port forwarding
+      shell: |
+        echo "🔍 Verifying port forwarding..."
+        sleep 5
+        
+        # Check if ports are listening
+        if netstat -tuln 2>/dev/null | grep -q ":8025 "; then
+          echo "✅ MailHog port 8025 is listening"
+        else
+          echo "❌ MailHog port 8025 is not listening"
+        fi
+        
+        if netstat -tuln 2>/dev/null | grep -q ":8082 "; then
+          echo "✅ Jenkins port 8082 is listening"
+        else
+          echo "❌ Jenkins port 8082 is not listening"
+        fi
+        
+        # Check if processes are running
+        if ps aux | grep -v grep | grep -q "kubectl port-forward.*mailhog"; then
+          echo "✅ MailHog port forward process is running"
+        else
+          echo "❌ MailHog port forward process is not running"
+        fi
+        
+        if ps aux | grep -v grep | grep -q "kubectl port-forward.*jenkins"; then
+          echo "✅ Jenkins port forward process is running"
+        else
+          echo "❌ Jenkins port forward process is not running"
+        fi
+      args:
+        chdir: "{{ project_root }}/.."
+      register: port_forward_verify
+      failed_when: false
+
+    - name: Display port forwarding status
+      debug:
+        msg: |
+          Port Forwarding Status:
+          MailHog: {{ mailhog_port_forward.stdout }}
+          Jenkins: {{ jenkins_port_forward.stdout }}
+          Verification: {{ port_forward_verify.stdout }}
+
+    - name: Display final status
+      debug:
+        msg: |
+          ========================================
+          🎉 DEVOPS PETS DEPLOYMENT COMPLETE!
+          ========================================
+          
+          Essential Services Deployed:
+          ✅ PostgreSQL Database (Internal)
+          ✅ MailHog Email Service  
+          ✅ Jenkins CI/CD Server
+          ✅ Port Forwarding Active
+          
+          Access URLs:
+          📧 MailHog: http://localhost:8025
+          🔧 Jenkins: http://localhost:8082
+          
+          Jenkins Setup:
+          1. Go to http://localhost:8082
+          2. Get admin password: kubectl exec -n {{ namespace }} deployment/jenkins -- cat /var/jenkins_home/secrets/initialAdminPassword
+          3. Complete setup wizard
+          
+          PostgreSQL (Internal):
+          - Host: postgres.{{ namespace }}.svc.cluster.local
+          - Port: 5432
+          - Database: petdb
+          - Username: petuser
+          
+          Port Forward Management:
+          - Check status: ps aux | grep port-forward
+          - Stop all: pkill -f 'kubectl port-forward'
+          - Restart: Run deploy.sh again
+          
+          ======================================== 
