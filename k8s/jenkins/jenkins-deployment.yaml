@@ -17,10 +17,9 @@ spec:
         runAsUser: 0
         runAsGroup: 0
         fsGroup: 0
-      hostNetwork: true
       containers:
         - name: jenkins
-          image: jenkins/jenkins:lts
+          image: devops-pets-jenkins:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

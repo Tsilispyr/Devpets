@@ -9,7 +9,7 @@ BOLD_GREEN='\033[1;32m'
 BOLD_RED='\033[1;31m'
 NC='\033[0m' # No Color
 
-echo "=== DevOps Pets Services Status ==="
+echo "=== DevOps Pets Complete Status ==="
 
 # Check Jenkins
 echo "Jenkins Status:"
@@ -19,13 +19,14 @@ else
     echo -e "${BOLD_RED}ERR! Jenkins is not accessible${NC}"
 fi
 
-# Check Jenkins container
+# Check Jenkins port forwarding
 echo ""
-echo "Jenkins Container:"
-if docker ps | grep -q jenkins; then
-    docker ps | grep jenkins
+echo "Jenkins Port Forwarding:"
+if pgrep -f "kubectl port-forward.*jenkins" >/dev/null; then
+    echo -e "${BOLD_GREEN}OK! Jenkins port forwarding is active${NC}"
+    pgrep -f "kubectl port-forward.*jenkins"
 else
-    echo -e "${BOLD_RED}ERR! Jenkins container not running${NC}"
+    echo -e "${BOLD_RED}ERR! Jenkins port forwarding not found${NC}"
 fi
 
 # Check MailHog
@@ -47,6 +48,24 @@ else
     echo -e "${BOLD_RED}ERR! MailHog port forwarding not found${NC}"
 fi
 
+# Check Frontend (if deployed)
+echo ""
+echo "Frontend Status:"
+if curl -s http://localhost:8081 >/dev/null 2>&1; then
+    echo -e "${BOLD_GREEN}OK! Frontend is running at http://localhost:8081${NC}"
+else
+    echo -e "${YELLOW}Frontend is not accessible (may not be deployed)${NC}"
+fi
+
+# Check Backend (if deployed)
+echo ""
+echo "Backend Status:"
+if curl -s http://localhost:8080 >/dev/null 2>&1; then
+    echo -e "${BOLD_GREEN}OK! Backend is running at http://localhost:8080${NC}"
+else
+    echo -e "${YELLOW}Backend is not accessible (may not be deployed)${NC}"
+fi
+
 # Check Kubernetes cluster
 echo ""
 echo "Kubernetes Cluster:"
@@ -64,19 +83,23 @@ if kubectl get namespace devops-pets >/dev/null 2>&1; then
     echo ""
     echo "Kubernetes Services:"
     kubectl get svc -n devops-pets
+    echo ""
+    echo "Kubernetes Deployments:"
+    kubectl get deployments -n devops-pets
 else
     echo -e "${BOLD_RED}ERR! Namespace 'devops-pets' not found${NC}"
 fi
 
 echo ""
 echo "Useful commands:"
-echo "View Jenkins logs: docker logs jenkins-devops-pets"
 echo "Check cluster: kind get clusters"
 echo "Check pods: kubectl get pods -n devops-pets"
+echo "View logs: kubectl logs <pod-name> -n devops-pets"
+echo "Stop port forwarding: pkill -f 'kubectl port-forward'"
 echo ""
 echo "Port Forwarding Processes:"
 if pgrep -f "kubectl port-forward" >/dev/null; then
     pgrep -f "kubectl port-forward" -l
 else
-    echo -e "${BOLD_RED}ERR! Cannot check services - namespace not found${NC}"
+    echo -e "${YELLOW}No port forwarding processes found${NC}"
 fi 

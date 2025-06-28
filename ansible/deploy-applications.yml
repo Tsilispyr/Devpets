@@ -1,0 +1,205 @@
+---
+- name: DevOps Pets Applications Deployment
+  hosts: localhost
+  gather_facts: no
+  become: no
+  vars:
+    project_root: "{{ playbook_dir | realpath }}"
+    k8s_path: "{{ project_root }}/k8s"
+    cluster_name: "devops-pets"
+    namespace: "devops-pets"
+  
+  tasks:
+    - name: Display deployment start
+      debug:
+        msg: |
+          DEVOPS PETS APPLICATIONS DEPLOYMENT
+          ===================================
+          Deploying frontend and backend to local cluster:
+          1. Build frontend image
+          2. Build backend image
+          3. Load images to cluster
+          4. Deploy applications
+          5. Wait till ready
+          6. Setup port forwarding
+
+    # STEP 1: BUILD FRONTEND IMAGE
+    - name: Build Frontend image
+      shell: |
+        echo "=== STEP 1: BUILDING FRONTEND IMAGE ==="
+        docker build -t devops-pets-frontend:latest {{ project_root }}/frontend/
+        echo "OK! Frontend image built"
+        
+        echo "Verifying Frontend image..."
+        docker images | grep devops-pets-frontend
+      args:
+        chdir: "{{ project_root }}"
+      register: frontend_build
+
+    # STEP 2: LOAD FRONTEND IMAGE TO CLUSTER
+    - name: Load Frontend image to Kind cluster
+      shell: |
+        echo "=== STEP 2: LOADING FRONTEND IMAGE TO KIND CLUSTER ==="
+        kind load docker-image devops-pets-frontend:latest --name {{ cluster_name }}
+        echo "OK! Frontend image loaded"
+        
+        echo "Verifying loaded images..."
+        docker exec {{ cluster_name }}-control-plane crictl images | grep devops-pets-frontend
+      args:
+        chdir: "{{ project_root }}"
+      register: frontend_load
+
+    # STEP 3: BUILD BACKEND IMAGE
+    - name: Build Backend image
+      shell: |
+        echo "=== STEP 3: BUILDING BACKEND IMAGE ==="
+        docker build -t devops-pets-backend:latest {{ project_root }}/Ask/
+        echo "OK! Backend image built"
+        
+        echo "Verifying Backend image..."
+        docker images | grep devops-pets-backend
+      args:
+        chdir: "{{ project_root }}"
+      register: backend_build
+
+    # STEP 4: LOAD BACKEND IMAGE TO CLUSTER
+    - name: Load Backend image to Kind cluster
+      shell: |
+        echo "=== STEP 4: LOADING BACKEND IMAGE TO KIND CLUSTER ==="
+        kind load docker-image devops-pets-backend:latest --name {{ cluster_name }}
+        echo "OK! Backend image loaded"
+        
+        echo "Verifying loaded images..."
+        docker exec {{ cluster_name }}-control-plane crictl images | grep devops-pets-backend
+      args:
+        chdir: "{{ project_root }}"
+      register: backend_load
+
+    # STEP 5: DEPLOY FRONTEND
+    - name: Apply Frontend manifests
+      shell: |
+        echo "=== STEP 5: DEPLOYING FRONTEND ==="
+        kubectl apply -f {{ k8s_path }}/frontend/ -n {{ namespace }}
+        echo "OK! Frontend manifests applied"
+      args:
+        chdir: "{{ project_root }}"
+      register: frontend_apply
+
+    - name: Wait for Frontend to be ready
+      shell: |
+        echo "=== STEP 5.1: WAITING FOR FRONTEND TO BE READY ==="
+        echo "Waiting for Frontend deployment to be ready..."
+        
+        max_attempts=30
+        attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+          if kubectl get deployment frontend -n {{ namespace }} --no-headers 2>/dev/null | grep -q "1/1"; then
+            echo "OK! Frontend deployment is ready!"
+            break
+          fi
+          
+          echo "Attempt $attempt/$max_attempts - waiting 10 seconds..."
+          sleep 10
+          attempt=$((attempt + 1))
+        done
+        
+        if [ $attempt -gt $max_attempts ]; then
+          echo "ERR! Frontend deployment failed to become ready after $max_attempts attempts"
+          exit 1
+        fi
+        
+        echo "Verifying Frontend pod..."
+        kubectl get pods -n {{ namespace }} | grep frontend
+      args:
+        chdir: "{{ project_root }}"
+      register: frontend_ready
+
+    # STEP 6: DEPLOY BACKEND
+    - name: Apply Backend manifests
+      shell: |
+        echo "=== STEP 6: DEPLOYING BACKEND ==="
+        kubectl apply -f {{ k8s_path }}/backend/ -n {{ namespace }}
+        echo "OK! Backend manifests applied"
+      args:
+        chdir: "{{ project_root }}"
+      register: backend_apply
+
+    - name: Wait for Backend to be ready
+      shell: |
+        echo "=== STEP 6.1: WAITING FOR BACKEND TO BE READY ==="
+        echo "Waiting for Backend deployment to be ready..."
+        
+        max_attempts=30
+        attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+          if kubectl get deployment backend -n {{ namespace }} --no-headers 2>/dev/null | grep -q "1/1"; then
+            echo "OK! Backend deployment is ready!"
+            break
+          fi
+          
+          echo "Attempt $attempt/$max_attempts - waiting 10 seconds..."
+          sleep 10
+          attempt=$((attempt + 1))
+        done
+        
+        if [ $attempt -gt $max_attempts ]; then
+          echo "ERR! Backend deployment failed to become ready after $max_attempts attempts"
+          exit 1
+        fi
+        
+        echo "Verifying Backend pod..."
+        kubectl get pods -n {{ namespace }} | grep backend
+      args:
+        chdir: "{{ project_root }}"
+      register: backend_ready
+
+    # STEP 7: SETUP ADDITIONAL PORT FORWARDING
+    - name: Setup application port forwarding
+      shell: |
+        echo "=== STEP 7: SETTING UP APPLICATION PORT FORWARDING ==="
+        echo "Setting up port forwarding for Frontend (8081) and Backend (8080)..."
+        
+        # Start frontend port forwarding in background
+        kubectl port-forward -n {{ namespace }} service/frontend 8081:80 &
+        FRONTEND_PF_PID=$!
+        
+        # Start backend port forwarding in background
+        kubectl port-forward -n {{ namespace }} service/backend 8080:8080 &
+        BACKEND_PF_PID=$!
+        
+        # Wait a moment for port forwarding to establish
+        sleep 5
+        
+        echo "OK! Application port forwarding started!"
+        echo "Frontend: http://localhost:8081"
+        echo "Backend: http://localhost:8080"
+        echo ""
+        echo "To stop application port forwarding, run:"
+        echo "kill $FRONTEND_PF_PID $BACKEND_PF_PID"
+      args:
+        chdir: "{{ project_root }}"
+      register: app_port_forwarding
+
+    # FINAL SUCCESS MESSAGE
+    - name: Display final success message
+      debug:
+        msg: |
+          ================================
+          OK! DEVOPS PETS APPLICATIONS DEPLOYMENT COMPLETED SUCCESSFULLY!
+          ================================
+          
+          All services are deployed and ready:
+          - Frontend: http://localhost:8081
+          - Backend: http://localhost:8080
+          - Jenkins: http://localhost:8082
+          - MailHog: http://localhost:8025
+          - PostgreSQL: Running in cluster
+          
+          ================================
+          Useful commands:
+          - Check services: kubectl get all -n {{ namespace }}
+          - View logs: kubectl logs -n {{ namespace }}
+          - Stop port forwarding: pkill -f 'kubectl port-forward'
+          ================================ 

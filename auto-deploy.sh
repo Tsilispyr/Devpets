@@ -261,11 +261,11 @@ verify_project() {
     local required_files=(
         "ansible/deploy-all.yml"
         "ansible/inventory.ini"
-        "Ask/Dockerfile"
-        "frontend/Dockerfile"
-        "jenkins-dockerfile"
+        "k8s/jenkins/Dockerfile"
+        "k8s/jenkins/jenkins-deployment.yaml"
+        "k8s/postgres/postgres-deployment.yaml"
+        "k8s/mailhog/mailhog-deployment.yaml"
         "kind-config.yaml"
-        "Jenkinsfile"
     )
     
     for file in "${required_files[@]}"; do
@@ -280,7 +280,7 @@ verify_project() {
 
 # Function to deploy application
 deploy_application() {
-    print_status "Starting deployment with Ansible..."
+    print_status "Starting infrastructure deployment with Ansible..."
     
     # Check if we're in the right directory
     if [ ! -f "ansible/deploy-all.yml" ]; then
@@ -288,14 +288,29 @@ deploy_application() {
         exit 1
     fi
     
-    # Run Ansible deployment
+    # Run Ansible infrastructure deployment
     ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
     
     if [ $? -eq 0 ]; then
-        print_success "Deployment completed successfully!"
+        print_success "Infrastructure deployment completed successfully!"
     else
-        print_error "Deployment failed!"
+        print_error "Infrastructure deployment failed!"
         exit 1
+    fi
+    
+    # Deploy applications if deploy-applications.yml exists
+    if [ -f "ansible/deploy-applications.yml" ]; then
+        print_status "Starting applications deployment with Ansible..."
+        ansible-playbook -i ansible/inventory.ini ansible/deploy-applications.yml
+        
+        if [ $? -eq 0 ]; then
+            print_success "Applications deployment completed successfully!"
+        else
+            print_error "Applications deployment failed!"
+            exit 1
+        fi
+    else
+        print_warning "Applications deployment skipped (deploy-applications.yml not found)"
     fi
 }
 
@@ -304,10 +319,16 @@ display_access_info() {
     print_success "DevOps Pets is now running!"
     echo
     echo "Access URLs:"
-    echo "   Frontend:    http://localhost:8081"
-    echo "   Backend API: http://localhost:8080"
     echo "   Jenkins:     http://localhost:8082"
     echo "   Mailhog:     http://localhost:8025"
+    echo "   PostgreSQL:  Running in cluster"
+    
+    # Check if applications were deployed
+    if [ -f "ansible/deploy-applications.yml" ]; then
+        echo "   Frontend:    http://localhost:8081"
+        echo "   Backend API: http://localhost:8080"
+    fi
+    
     echo
     echo "Useful commands:"
     echo "   Check pods:     kubectl get pods -n devops-pets"

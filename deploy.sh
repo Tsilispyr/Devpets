@@ -5,7 +5,9 @@
 
 set -e
 
-echo "DevOps Pets - Complete Deployment"
+# Cache busting - add timestamp to ensure fresh download
+CACHE_BUSTER=$(date +%s)
+echo "DevOps Pets - Complete Deployment (Cache Buster: $CACHE_BUSTER)"
 echo "==================================="
 
 # Colors for output
@@ -102,6 +104,43 @@ install_prerequisites() {
     echo -e "${BOLD_GREEN}OK! Prerequisites installed${NC}"
 }
 
+# Function to clone or update repository
+setup_repository() {
+    echo -e "${YELLOW}Setting up repository...${NC}"
+    
+    # Check if we're already in the project directory
+    if [ -f "ansible/deploy-all.yml" ] && [ -f "ansible/inventory.ini" ]; then
+        echo -e "${BLUE}Already in project directory, updating repository...${NC}"
+        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || echo "Could not update repository"
+    else
+        echo -e "${BLUE}Cloning repository...${NC}"
+        # Create a temporary directory for cloning
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        
+        # Clone the repository
+        git clone https://github.com/Tsilispyr/Devpets.git pets-devops
+        cd pets-devops
+        
+        # Update PROJECT_ROOT to point to the cloned directory
+        PROJECT_ROOT="$(pwd)"
+        echo -e "${BLUE}Repository cloned to: $PROJECT_ROOT${NC}"
+    fi
+    
+    # Verify essential files exist
+    if [ ! -f "ansible/inventory.ini" ]; then
+        echo -e "${BOLD_RED}ERR! Inventory file not found after repository setup${NC}"
+        exit 1
+    fi
+    
+    if [ ! -f "ansible/deploy-all.yml" ]; then
+        echo -e "${BOLD_RED}ERR! deploy-all.yml not found after repository setup${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BOLD_GREEN}OK! Repository setup completed${NC}"
+}
+
 # Function to run Ansible deployment
 run_ansible_deployment() {
     echo -e "${YELLOW}Running Ansible deployment...${NC}"
@@ -123,7 +162,7 @@ run_ansible_deployment() {
     
     # Run the deployment
     echo -e "${BLUE}Starting Ansible deployment from $PROJECT_ROOT...${NC}"
-    ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
+    ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml --flush-cache
     
     echo -e "${BOLD_GREEN}OK! Deployment completed!${NC}"
 }
@@ -185,11 +224,12 @@ run_port_forwarding() {
 # Function to display final status
 display_status() {
     echo -e "${BLUE}================================${NC}"
-    echo -e "${BOLD_GREEN}OK! DevOps Pets deployment completed!${NC}"
+    echo -e "${BOLD_GREEN}OK! DevOps Pets Infrastructure deployment completed!${NC}"
     echo -e "${BLUE}================================${NC}"
     echo -e "${YELLOW}Access URLs:${NC}"
     echo -e "MailHog: ${GREEN}http://localhost:8025${NC}"
     echo -e "Jenkins: ${GREEN}http://localhost:8082${NC}"
+    echo -e "PostgreSQL: ${GREEN}Running in cluster${NC}"
     echo -e "${BLUE}================================${NC}"
     echo -e "${YELLOW}Useful commands:${NC}"
     echo -e "1. Check services: ${GREEN}cd $PROJECT_ROOT && ./check-services.sh${NC}"
@@ -207,6 +247,9 @@ main() {
     
     # Install prerequisites
     install_prerequisites
+    
+    # Setup repository
+    setup_repository
     
     # Run Ansible deployment
     run_ansible_deployment

@@ -43,9 +43,10 @@ RUN git --version \
 # Grant Jenkins access to Docker socket
 # Create a docker group with the same GID as the host's docker.sock
 # and add the jenkins user to it.
-RUN DOCKER_SOCKET_GID=$(stat -c '%g' /var/run/docker.sock) && \
-    groupadd -g $DOCKER_SOCKET_GID docker || true && \
-    usermod -aG docker jenkins
+# Note: This should be handled at runtime, not build time
+# RUN DOCKER_SOCKET_GID=$(stat -c '%g' /var/run/docker.sock) && \
+#     groupadd -g $DOCKER_SOCKET_GID docker || true && \
+#     usermod -aG docker jenkins
 
 RUN git config --global --add safe.directory '*'
 RUN curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl \

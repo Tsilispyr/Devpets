@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# DevOps Pets - One-Line Infrastructure Deployment Script
-# This script can be run from anywhere to deploy the infrastructure
-# Usage: curl -fsSL https://raw.githubusercontent.com/Tsilispyr/Devpets/main/curl-deploy.sh | bash
+# DevOps Pets - Test Infrastructure Deployment
+# Run with: curl -fsSL "https://raw.githubusercontent.com/Tsilispyr/Devpets/main/test-deploy.sh?t=$(date +%s)" | bash
 
 set -e
 
-echo "DevOps Pets - One-Line Infrastructure Deployment"
-echo "================================================"
+echo "DevOps Pets - Test Infrastructure Deployment"
+echo "============================================"
 
 # Colors for output
 RED='\033[0;31m'
@@ -19,9 +18,8 @@ BOLD_RED='\033[1;31m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO_URL="https://github.com/Tsilispyr/Devpets.git"
-REPO_DIR="Devpets"
-CURRENT_DIR="$(pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
 
 # Function to detect OS and install prerequisites
 install_prerequisites() {
@@ -89,88 +87,71 @@ install_prerequisites() {
 setup_repository() {
     echo -e "${YELLOW}Setting up repository...${NC}"
     
-    # Remove existing directory if it exists
-    if [ -d "$REPO_DIR" ]; then
-        echo -e "${YELLOW}Repository exists, updating...${NC}"
-        cd "$REPO_DIR"
-        git fetch origin
-        git reset --hard origin/main
-        cd "$CURRENT_DIR"
+    # Check if we're already in the project directory
+    if [ -f "ansible/deploy-all.yml" ] && [ -f "ansible/inventory.ini" ]; then
+        echo -e "${BLUE}Already in project directory, updating repository...${NC}"
+        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || echo "Could not update repository"
     else
-        echo -e "${YELLOW}Cloning repository...${NC}"
-        git clone "$REPO_URL" "$REPO_DIR"
+        echo -e "${BLUE}Cloning repository...${NC}"
+        # Create a temporary directory for cloning
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        
+        # Clone the repository
+        git clone https://github.com/Tsilispyr/Devpets.git pets-devops
+        cd pets-devops
+        
+        # Update PROJECT_ROOT to point to the cloned directory
+        PROJECT_ROOT="$(pwd)"
+        echo -e "${BLUE}Repository cloned to: $PROJECT_ROOT${NC}"
     fi
     
-    echo -e "${BOLD_GREEN}OK! Repository ready at $CURRENT_DIR/$REPO_DIR${NC}"
+    # Verify essential files exist
+    if [ ! -f "ansible/inventory.ini" ]; then
+        echo -e "${BOLD_RED}ERR! Inventory file not found after repository setup${NC}"
+        exit 1
+    fi
+    
+    if [ ! -f "ansible/deploy-all.yml" ]; then
+        echo -e "${BOLD_RED}ERR! deploy-all.yml not found after repository setup${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BOLD_GREEN}OK! Repository setup completed${NC}"
 }
 
-# Function to run deployment
-run_deployment() {
+# Function to run test deployment
+run_test_deployment() {
     echo -e "${YELLOW}Running infrastructure deployment...${NC}"
     
-    cd "$REPO_DIR"
+    # Change to project root directory
+    cd "$PROJECT_ROOT"
     
     # Check if deploy-all.yml exists
     if [ ! -f "ansible/deploy-all.yml" ]; then
-        echo -e "${BOLD_RED}ERR! deploy-all.yml not found in $REPO_DIR/ansible${NC}"
+        echo -e "${BOLD_RED}ERR! deploy-all.yml not found at $PROJECT_ROOT/ansible/deploy-all.yml${NC}"
         exit 1
     fi
     
-    # Make deploy-all.yml executable
-    chmod +x ansible/deploy-all.yml
+    # Run the deployment
+    echo -e "${BLUE}Starting infrastructure deployment from $PROJECT_ROOT...${NC}"
+    ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml --flush-cache
     
-    # Run the infrastructure deployment
-    echo -e "${BLUE}Starting infrastructure deployment from $REPO_DIR...${NC}"
-    ansible-playbook -i ansible/inventory.ini ansible/deploy-all.yml
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${BOLD_GREEN}OK! Infrastructure deployment completed!${NC}"
-    else
-        echo -e "${BOLD_RED}ERR! Infrastructure deployment failed!${NC}"
-        exit 1
-    fi
-    
-    # Deploy applications if deploy-applications.yml exists
-    if [ -f "ansible/deploy-applications.yml" ]; then
-        echo -e "${YELLOW}Deploying applications...${NC}"
-        ansible-playbook -i ansible/inventory.ini ansible/deploy-applications.yml
-        
-        if [ $? -eq 0 ]; then
-            echo -e "${BOLD_GREEN}OK! Applications deployment completed!${NC}"
-        else
-            echo -e "${BOLD_RED}ERR! Applications deployment failed!${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${YELLOW}Applications deployment skipped (deploy-applications.yml not found)${NC}"
-    fi
-    
-    echo -e "${BOLD_GREEN}OK! Complete deployment finished!${NC}"
+    echo -e "${BOLD_GREEN}OK! Infrastructure deployment completed!${NC}"
 }
 
 # Function to display final status
 display_status() {
     echo -e "${BLUE}================================${NC}"
-    echo -e "${BOLD_GREEN}OK! DevOps Pets deployment completed!${NC}"
+    echo -e "${BOLD_GREEN}OK! DevOps Pets infrastructure deployment completed!${NC}"
     echo -e "${BLUE}================================${NC}"
     echo -e "${YELLOW}Infrastructure Services Deployed:${NC}"
     echo -e "Jenkins: ${GREEN}http://localhost:8082${NC}"
     echo -e "MailHog: ${GREEN}http://localhost:8025${NC}"
     echo -e "PostgreSQL: ${GREEN}Running in cluster${NC}"
-    
-    # Check if applications were deployed
-    if [ -f "ansible/deploy-applications.yml" ]; then
-        echo -e "${YELLOW}Application Services Deployed:${NC}"
-        echo -e "Frontend: ${GREEN}http://localhost:8081${NC}"
-        echo -e "Backend: ${GREEN}http://localhost:8080${NC}"
-    fi
-    
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${YELLOW}Project location:${NC}"
-    echo -e "${GREEN}$CURRENT_DIR/$REPO_DIR${NC}"
     echo -e "${BLUE}================================${NC}"
     echo -e "${YELLOW}Useful commands:${NC}"
-    echo -e "1. Check services: ${GREEN}cd $REPO_DIR && ./check-services.sh${NC}"
+    echo -e "1. Check services: ${GREEN}kubectl get all -n devops-pets${NC}"
     echo -e "2. View logs: ${GREEN}kubectl logs -n devops-pets${NC}"
     echo -e "3. Stop port forwarding: ${GREEN}pkill -f 'kubectl port-forward'${NC}"
     echo -e "${BLUE}================================${NC}"
@@ -178,9 +159,10 @@ display_status() {
 
 # Main execution
 main() {
-    echo -e "${BLUE}DevOps Pets - One-Line Infrastructure Auto Deployment${NC}"
-    echo -e "${BLUE}====================================================${NC}"
-    echo -e "${YELLOW}Current directory: $CURRENT_DIR${NC}"
+    echo -e "${BLUE}DevOps Pets - Test Infrastructure Deployment${NC}"
+    echo -e "${BLUE}============================================${NC}"
+    echo -e "${YELLOW}Project root: $PROJECT_ROOT${NC}"
+    echo -e "${YELLOW}Script directory: $SCRIPT_DIR${NC}"
     
     # Install prerequisites
     install_prerequisites
@@ -188,8 +170,8 @@ main() {
     # Setup repository
     setup_repository
     
-    # Run deployment
-    run_deployment
+    # Run test deployment
+    run_test_deployment
     
     # Display final status
     display_status
