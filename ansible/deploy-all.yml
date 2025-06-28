@@ -1,7 +1,7 @@
 ---
 - name: DevOps Pets Infrastructure Deployment
   hosts: localhost
-  gather_facts: no
+  gather_facts: yes
   become: no
   vars:
     project_root: "{{ playbook_dir | dirname | realpath }}"
@@ -13,22 +13,22 @@
     # Include prerequisites installation
     - name: Include prerequisites installation
       include_tasks: tasks/prerequisites.yml
-      when: ansible_os_family != "Windows"
+      when: ansible_os_family is defined and ansible_os_family != "Windows"
 
     # Include Docker installation
     - name: Include Docker installation
       include_tasks: tasks/install-docker.yml
-      when: ansible_os_family != "Windows"
+      when: ansible_os_family is defined and ansible_os_family != "Windows"
 
     # Include Kind installation
     - name: Include Kind installation
       include_tasks: tasks/install-kind.yml
-      when: ansible_os_family != "Windows"
+      when: ansible_os_family is defined and ansible_os_family != "Windows"
 
     # Include Kubectl installation
     - name: Include Kubectl installation
       include_tasks: tasks/install-kubectl.yml
-      when: ansible_os_family != "Windows"
+      when: ansible_os_family is defined and ansible_os_family != "Windows"
 
     - name: Display deployment start
       debug:
