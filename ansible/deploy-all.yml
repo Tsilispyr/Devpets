@@ -5,7 +5,7 @@
   become: no
   vars:
     project_root: "{{ playbook_dir | realpath }}"
-    k8s_path: "{{ project_root }}/../k8s"
+    k8s_path: "{{ project_root }}/k8s"
     cluster_name: "devops-pets"
     namespace: "devops-pets"
   
@@ -66,7 +66,7 @@
         
         echo "✅ NUCLEAR CLEANUP completed (jenkins_home preserved)"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: cleanup_result
       failed_when: false
 
@@ -79,7 +79,7 @@
     # Step 1.3: Verify jenkins_home is preserved
     - name: Check jenkins_home preservation
       stat:
-        path: "{{ project_root }}/../jenkins_home"
+        path: "{{ project_root }}/jenkins_home"
       register: jenkins_home_preserved
 
     - name: Display jenkins_home preservation status
@@ -107,7 +107,7 @@
     # Step 2: Create Kind cluster
     - name: Create jenkins_home directory
       file:
-        path: "{{ project_root }}/../jenkins_home"
+        path: "{{ project_root }}/jenkins_home"
         state: directory
         mode: '0755'
 
@@ -123,12 +123,12 @@
         nodes:
         - role: control-plane
           extraMounts:
-          - hostPath: {{ project_root }}/../jenkins_home
+          - hostPath: {{ project_root }}/jenkins_home
             containerPath: /jenkins_home
         EOF
         echo "✅ Cluster created"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: cluster_create
 
     - name: Copy jenkins_home to kind node
@@ -137,7 +137,7 @@
         kind cp jenkins_home/ {{ cluster_name }}-control-plane:/jenkins_home/
         echo "✅ Files copied"
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: jenkins_copy
       when: jenkins_home_verify is defined
 
@@ -148,13 +148,13 @@
         kind export kubeconfig --name {{ cluster_name }}
         kubectl cluster-info
       args:
-        chdir: "{{ project_root }}/.."
+        chdir: "{{ project_root }}"
       register: kubeconfig_export
 
     # Step 3.5: Verify jenkins_home mount
     - name: Check jenkins_home directory
       stat:
-        path: "{{ project_root }}/../jenkins_home"
+        path: "{{ project_root }}/jenkins_home"
       register: jenkins_home_stat
 
     - name: Display jenkins_home status
@@ -165,7 +165,7 @@
 
     - name: List jenkins_home contents
       find:
-        paths: "{{ project_root }}/../jenkins_home"
+        paths: "{{ project_root }}/jenkins_home"
         file_type: any
       register: jenkins_home_files
 

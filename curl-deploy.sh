@@ -129,7 +129,7 @@ run_deployment() {
     
     # Check if deploy.sh exists
     if [ ! -f "deploy.sh" ]; then
-        echo -e "${RED}❌ deploy.sh not found${NC}"
+        echo -e "${RED}❌ deploy.sh not found in $REPO_DIR${NC}"
         exit 1
     fi
     
@@ -137,7 +137,7 @@ run_deployment() {
     chmod +x deploy.sh
     
     # Run the deployment
-    echo -e "${BLUE}🚀 Starting deployment...${NC}"
+    echo -e "${BLUE}🚀 Starting deployment from $REPO_DIR...${NC}"
     ./deploy.sh
     
     echo -e "${GREEN}✅ Deployment completed!${NC}"
