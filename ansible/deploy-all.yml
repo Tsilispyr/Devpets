@@ -23,6 +23,8 @@
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
           echo "Kind installed successfully"
+        else
+          echo "Kind already installed"
         fi
         
         # Install Kubectl if missing
@@ -32,16 +34,22 @@
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/kubectl
           echo "Kubectl installed successfully"
+        else
+          echo "Kubectl already installed"
         fi
         
         # Refresh PATH
         export PATH="/usr/local/bin:$PATH"
         echo "Tools installation completed"
+        
+        # Verify installations
+        echo "Verifying installations..."
+        kind version || echo "Kind verification failed"
+        kubectl version --client --short || echo "Kubectl verification failed"
       register: tools_install
-      failed_when: false
       changed_when: false
 
-    # Check if required tools are available
+    # Check if required tools are available (after installation)
     - name: Check if Docker is available
       shell: |
         export PATH="/usr/local/bin:$PATH"
@@ -67,13 +75,17 @@
       changed_when: false
 
     - name: Check if Curl is available
-      command: curl --version
+      shell: |
+        export PATH="/usr/local/bin:$PATH"
+        curl --version
       register: curl_check
       failed_when: false
       changed_when: false
 
     - name: Check if Unzip is available
-      command: unzip -v
+      shell: |
+        export PATH="/usr/local/bin:$PATH"
+        unzip -v
       register: unzip_check
       failed_when: false
       changed_when: false
