@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# DevOps Pets Deployment Script
+# Aggressive cleanup + comprehensive deployment
+
+set -e
+
+echo "🚀 DevOps Pets Deployment"
+echo "=========================="
+echo "AGGRESSIVE CLEANUP + COMPREHENSIVE DEPLOYMENT"
+echo ""
+
+# Check if Ansible is available
+if ! command -v ansible-playbook &> /dev/null; then
+    echo "❌ Ansible not found. Installing..."
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y ansible
+    elif command -v yum &> /dev/null; then
+        sudo yum install -y epel-release
+        sudo yum install -y ansible
+    elif command -v brew &> /dev/null; then
+        brew install ansible
+    else
+        echo "❌ Cannot install Ansible automatically. Please install it manually."
+        exit 1
+    fi
+fi
+
+echo "✅ Ansible is available"
+
+# Run the deployment
+echo "📦 Starting deployment..."
+echo "This will:"
+echo "- Kill all existing processes on ports 8082, 8025, 8080"
+echo "- Remove all devops-pets resources"
+echo "- Set proper permissions"
+echo "- Create fresh cluster and deploy services"
+echo "- Wait for everything to be ready"
+echo ""
+
+ansible-playbook deploy.yml
+
+echo ""
+echo "🎉 Deployment completed!"
+echo ""
+echo "Services available:"
+echo "- Jenkins: http://localhost:8082"
+echo "- MailHog: http://localhost:8025"
+echo ""
+echo "To stop port forwarding: pkill -f 'kubectl port-forward'"
+echo "Press Ctrl+C to exit (port forwarding will continue)" 

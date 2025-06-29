@@ -1,0 +1,82 @@
+---
+- name: DevOps Pets Complete Deployment
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  vars:
+    project_root: "{{ playbook_dir | dirname | realpath }}"
+    k8s_path: "{{ project_root }}/k8s"
+    cluster_name: "devops-pets"
+    namespace: "devops-pets"
+  
+  tasks:
+    - name: Display deployment start
+      debug:
+        msg: |
+          ========================================
+          🚀 DEVOPS PETS COMPLETE DEPLOYMENT
+          ========================================
+          
+          This playbook will:
+          1. Install all required tools (Docker, Kind, Kubectl)
+          2. AGGRESSIVE CLEANUP (kill everything except jenkins_home)
+          3. Set proper permissions (write, root, execute)
+          4. Create fresh Kind cluster
+          5. Build and deploy all services
+          6. Wait for each service to be fully ready
+          7. Setup port forwarding only when everything is ready
+          
+          Services: PostgreSQL, Jenkins, MailHog
+          Ports: Jenkins(8082), MailHog(8025)
+          
+          WAITING STRATEGY: kubectl wait for each step, no sleep commands
+          
+          ========================================
+
+    # Include infrastructure deployment
+    - name: Deploy infrastructure
+      include_tasks: ansible/deploy-all.yml
+
+    # Include applications deployment (if present)
+    - name: Check if applications exist
+      stat:
+        path: "{{ k8s_path }}/frontend"
+      register: frontend_exists
+
+    - name: Check if backend exists
+      stat:
+        path: "{{ k8s_path }}/backend"
+      register: backend_exists
+
+    - name: Deploy applications if present
+      include_tasks: ansible/deploy-applications.yml
+      when: frontend_exists.stat.exists or backend_exists.stat.exists
+
+    - name: Display final success message
+      debug:
+        msg: |
+          ========================================
+          🎉 DEPLOYMENT COMPLETED SUCCESSFULLY!
+          ========================================
+          
+          Infrastructure Services:
+          - Jenkins: http://localhost:8082
+          - MailHog: http://localhost:8025
+          - PostgreSQL: Running in cluster
+          
+          {% if frontend_exists.stat.exists %}
+          Applications:
+          - Frontend: http://localhost:8081
+          {% endif %}
+          {% if backend_exists.stat.exists %}
+          - Backend: http://localhost:8080
+          {% endif %}
+          
+          ========================================
+          Useful Commands:
+          - Check all: kubectl get all -n {{ namespace }}
+          - View logs: kubectl logs -n {{ namespace }} <pod-name>
+          - Stop forwarding: pkill -f 'kubectl port-forward'
+          ================================
+          Press Ctrl+C to exit (port forwarding will continue)
+          ================================ 

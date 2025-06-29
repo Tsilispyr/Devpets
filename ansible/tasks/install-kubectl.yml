@@ -1,10 +1,22 @@
 ---
+- name: Check if kubectl is already installed
+  stat:
+    path: /usr/local/bin/kubectl
+  register: kubectl_bin
+
 - name: Download kubectl
   shell: |
-    curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
     chmod +x kubectl
-    mv kubectl /usr/local/bin/
-    chown root:root /usr/local/bin/kubectl
-  args:
-    creates: /usr/local/bin/kubectl
-  ignore_errors: yes 
+    sudo mv kubectl /usr/local/bin/
+    sudo chown root:root /usr/local/bin/kubectl
+    sudo chmod +x /usr/local/bin/kubectl
+  when: not kubectl_bin.stat.exists
+  failed_when: false
+
+- name: Verify kubectl installation
+  shell: |
+    export PATH="/usr/local/bin:$PATH"
+    kubectl version --client --short
+  register: kubectl_verify
+  failed_when: false 
