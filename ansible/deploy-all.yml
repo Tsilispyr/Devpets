@@ -10,44 +10,18 @@
     namespace: "devops-pets"
   
   tasks:
-    # Install missing tools if needed
-    - name: Install missing tools
-      shell: |
-        echo "=== INSTALLING MISSING TOOLS ==="
-        
-        # Install Kind if missing
-        if ! command -v kind &> /dev/null; then
-          echo "Installing Kind..."
-          KIND_VERSION="v0.20.0"
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
-          echo "Kind installed successfully"
-        else
-          echo "Kind already installed"
-        fi
-        
-        # Install Kubectl if missing
-        if ! command -v kubectl &> /dev/null; then
-          echo "Installing Kubectl..."
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/kubectl
-          echo "Kubectl installed successfully"
-        else
-          echo "Kubectl already installed"
-        fi
-        
-        # Refresh PATH
-        export PATH="/usr/local/bin:$PATH"
-        echo "Tools installation completed"
-        
-        # Verify installations
-        echo "Verifying installations..."
-        kind version || echo "Kind verification failed"
-        kubectl version --client --short || echo "Kubectl verification failed"
-      register: tools_install
-      changed_when: false
+    # Install missing tools using proper Ansible tasks
+    - name: Include Kind installation
+      include_tasks: tasks/install-kind.yml
+      when: ansible_os_family == "Debian"
+
+    - name: Include Kubectl installation
+      include_tasks: tasks/install-kubectl.yml
+      when: ansible_os_family == "Debian"
+
+    - name: Include Docker installation
+      include_tasks: tasks/install-docker.yml
+      when: ansible_os_family == "Debian"
 
     # Check if required tools are available (after installation)
     - name: Check if Docker is available
