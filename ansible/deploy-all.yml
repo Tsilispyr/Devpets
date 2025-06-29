@@ -10,21 +10,58 @@
     namespace: "devops-pets"
   
   tasks:
+    # Install missing tools if needed
+    - name: Install missing tools
+      shell: |
+        echo "=== INSTALLING MISSING TOOLS ==="
+        
+        # Install Kind if missing
+        if ! command -v kind &> /dev/null; then
+          echo "Installing Kind..."
+          KIND_VERSION="v0.20.0"
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          echo "Kind installed successfully"
+        fi
+        
+        # Install Kubectl if missing
+        if ! command -v kubectl &> /dev/null; then
+          echo "Installing Kubectl..."
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          echo "Kubectl installed successfully"
+        fi
+        
+        # Refresh PATH
+        export PATH="/usr/local/bin:$PATH"
+        echo "Tools installation completed"
+      register: tools_install
+      failed_when: false
+      changed_when: false
+
     # Check if required tools are available
     - name: Check if Docker is available
-      command: docker --version
+      shell: |
+        export PATH="/usr/local/bin:$PATH"
+        docker --version
       register: docker_check
       failed_when: false
       changed_when: false
 
     - name: Check if Kind is available
-      command: kind version
+      shell: |
+        export PATH="/usr/local/bin:$PATH"
+        kind version
       register: kind_check
       failed_when: false
       changed_when: false
 
     - name: Check if Kubectl is available
-      command: kubectl version --client --short
+      shell: |
+        export PATH="/usr/local/bin:$PATH"
+        kubectl version --client --short
       register: kubectl_check
       failed_when: false
       changed_when: false
@@ -98,6 +135,7 @@
     # STEP 1: HARSH CLEANUP (preserve jenkins_home only)
     - name: Harsh cleanup - preserve jenkins_home only
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 1: HARSH CLEANUP ==="
         echo "PRESERVING: jenkins_home only"
         echo "REFRESHING: images, cluster, port forwarding"
@@ -175,6 +213,7 @@
 
     - name: Create Kind cluster
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 2: CREATING KIND CLUSTER ==="
         cd {{ project_root }}
         kind create cluster --name {{ cluster_name }} --config kind-config.yaml
@@ -188,6 +227,7 @@
     # STEP 3: CREATE NAMESPACE
     - name: Create namespace
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 3: CREATING NAMESPACE ==="
         kubectl create namespace {{ namespace }}
         echo "OK! Namespace created"
@@ -217,6 +257,7 @@
 
     - name: Apply Jenkins home PV and PVC
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 3.2: APPLYING JENKINS HOME PV/PVC ==="
         cd {{ project_root }}
         
@@ -230,6 +271,7 @@
     # STEP 4: BUILD AND LOAD IMAGES
     - name: Build Jenkins image
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 4: BUILDING JENKINS IMAGE ==="
         cd {{ project_root }}
         docker build -t devops-pets-jenkins:latest {{ k8s_path }}/jenkins/
@@ -241,6 +283,7 @@
 
     - name: Load Jenkins image to Kind cluster
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 4.1: LOADING JENKINS IMAGE TO KIND CLUSTER ==="
         cd {{ project_root }}
         kind load docker-image devops-pets-jenkins:latest --name {{ cluster_name }}
@@ -252,6 +295,7 @@
 
     - name: Build PostgreSQL image
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 4.2: BUILDING POSTGRESQL IMAGE ==="
         cd {{ project_root }}
         docker build -t devops-pets-postgres:latest {{ k8s_path }}/postgres/
@@ -263,6 +307,7 @@
 
     - name: Load PostgreSQL image to Kind cluster
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 4.3: LOADING POSTGRESQL IMAGE TO KIND CLUSTER ==="
         cd {{ project_root }}
         kind load docker-image devops-pets-postgres:latest --name {{ cluster_name }}
@@ -274,6 +319,7 @@
 
     - name: Build MailHog image
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 4.4: BUILDING MAILHOG IMAGE ==="
         cd {{ project_root }}
         docker build -t devops-pets-mailhog:latest {{ k8s_path }}/mailhog/
@@ -285,6 +331,7 @@
 
     - name: Load MailHog image to Kind cluster
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 4.5: LOADING MAILHOG IMAGE TO KIND CLUSTER ==="
         cd {{ project_root }}
         kind load docker-image devops-pets-mailhog:latest --name {{ cluster_name }}
@@ -297,6 +344,7 @@
     # STEP 5: APPLY MANIFESTS
     - name: Apply PostgreSQL manifests
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 5: APPLYING POSTGRESQL MANIFESTS ==="
         cd {{ project_root }}
         kubectl apply -f {{ k8s_path }}/postgres/ -n {{ namespace }}
@@ -305,6 +353,7 @@
 
     - name: Apply MailHog manifests
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 5.1: APPLYING MAILHOG MANIFESTS ==="
         cd {{ project_root }}
         kubectl apply -f {{ k8s_path }}/mailhog/ -n {{ namespace }}
@@ -313,6 +362,7 @@
 
     - name: Apply Jenkins manifests
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 5.2: APPLYING JENKINS MANIFESTS ==="
         cd {{ project_root }}
         kubectl apply -f {{ k8s_path }}/jenkins/ -n {{ namespace }}
@@ -322,6 +372,7 @@
     # STEP 6: WAIT FOR SERVICES TO BE READY (using kubectl wait like old script)
     - name: Wait for PostgreSQL to be ready
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 6: WAITING FOR POSTGRESQL TO BE READY ==="
         echo "Waiting for PostgreSQL deployment to be ready..."
         
@@ -340,6 +391,7 @@
 
     - name: Wait for MailHog to be ready
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 6.1: WAITING FOR MAILHOG TO BE READY ==="
         echo "Waiting for MailHog deployment to be ready..."
         
@@ -358,6 +410,7 @@
 
     - name: Wait for Jenkins to be ready
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 6.2: WAITING FOR JENKINS TO BE READY ==="
         echo "Waiting for Jenkins deployment to be ready..."
         
@@ -377,6 +430,7 @@
     # STEP 7: ADDITIONAL VERIFICATION AND WAITING
     - name: Wait for all pods to be ready
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 7: FINAL VERIFICATION - ALL PODS READY ==="
         echo "Waiting for ALL pods to be in Running state..."
         
@@ -410,6 +464,7 @@
     # STEP 8: FINAL VERIFICATION
     - name: Final verification
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 8: FINAL VERIFICATION ==="
         echo "All pods in {{ namespace }} namespace:"
         kubectl get pods -n {{ namespace }}
@@ -431,6 +486,7 @@
     # STEP 9: SETUP PORT FORWARDING (only at the end)
     - name: Setup port forwarding
       shell: |
+        export PATH="/usr/local/bin:$PATH"
         echo "=== STEP 9: SETTING UP PORT FORWARDING ==="
         echo "Setting up port forwarding for Jenkins (8082) and MailHog (8025)..."
         
